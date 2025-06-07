@@ -1,10 +1,9 @@
-use crate::config::Config;
-use crate::errors::Result;
+use crate::{config::Config, CliError, Result};
 use dialoguer::{Input, Password, Select};
 use std::path::Path;
 
 /// Handle the init command for first-time setup
-pub async fn handle_init() -> Result<()> {
+pub async fn handle() -> Result<()> {
     println!("🚀 Lium initialization");
     println!("Setting up your Lium configuration...\n");
 
@@ -97,7 +96,7 @@ fn get_api_key_from_user() -> Result<String> {
         .interact()?;
 
     if api_key.trim().is_empty() {
-        return Err(crate::errors::LiumError::InvalidInput(
+        return Err(CliError::InvalidInput(
             "API key cannot be empty".to_string(),
         ));
     }
@@ -140,7 +139,7 @@ fn get_ssh_key_path_from_user() -> Result<String> {
         .interact()?;
 
     if ssh_key_path.trim().is_empty() {
-        return Err(crate::errors::LiumError::InvalidInput(
+        return Err(CliError::InvalidInput(
             "SSH key path cannot be empty".to_string(),
         ));
     }
@@ -150,7 +149,7 @@ fn get_ssh_key_path_from_user() -> Result<String> {
 
 /// Test API connection with the provided key
 async fn test_api_connection(api_key: &str) -> Result<()> {
-    let api_client = crate::api::LiumApiClient::new(api_key.to_string(), None);
+    let api_client = lium_api::LiumApiClient::new(api_key.to_string(), None);
     api_client.test_connection().await?;
     Ok(())
 }
@@ -160,14 +159,14 @@ fn validate_ssh_key(key_path: &str) -> Result<()> {
     let expanded_path = expand_path(key_path)?;
 
     if !expanded_path.exists() {
-        return Err(crate::errors::LiumError::InvalidInput(format!(
+        return Err(CliError::InvalidInput(format!(
             "SSH key file not found: {}",
             expanded_path.display()
         )));
     }
 
     if !expanded_path.is_file() {
-        return Err(crate::errors::LiumError::InvalidInput(format!(
+        return Err(CliError::InvalidInput(format!(
             "SSH key path is not a file: {}",
             expanded_path.display()
         )));
@@ -177,15 +176,13 @@ fn validate_ssh_key(key_path: &str) -> Result<()> {
     let key_content = std::fs::read_to_string(&expanded_path)?;
 
     if key_content.trim().is_empty() {
-        return Err(crate::errors::LiumError::InvalidInput(
-            "SSH key file is empty".to_string(),
-        ));
+        return Err(CliError::InvalidInput("SSH key file is empty".to_string()));
     }
 
     // Basic validation - should start with ssh-rsa, ssh-ed25519, etc.
     let first_line = key_content.lines().next().unwrap_or("").trim();
     if !first_line.starts_with("ssh-") {
-        return Err(crate::errors::LiumError::InvalidInput(
+        return Err(CliError::InvalidInput(
             "SSH key file does not appear to contain a valid public key".to_string(),
         ));
     }
@@ -199,7 +196,7 @@ fn expand_path(path: &str) -> Result<std::path::PathBuf> {
         if let Some(home_dir) = dirs::home_dir() {
             Ok(home_dir.join(path.strip_prefix("~/").unwrap_or(&path[1..])))
         } else {
-            Err(crate::errors::LiumError::InvalidInput(
+            Err(CliError::InvalidInput(
                 "Cannot determine home directory".to_string(),
             ))
         }

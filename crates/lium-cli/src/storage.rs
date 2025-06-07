@@ -1,4 +1,4 @@
-use crate::errors::{LiumError, Result};
+use crate::{CliError, Result};
 use lium_core::{ExecutorInfo, PodInfo};
 
 /// Trait for storing and retrieving selection data
@@ -50,7 +50,7 @@ impl SelectionStorage for ExecutorSelectionStorage {
 
         if let Some(data_str) = config.get_value("last_selection", "data")? {
             let data: serde_json::Value = serde_json::from_str(&data_str)
-                .map_err(|e| LiumError::InvalidInput(format!("Invalid selection data: {}", e)))?;
+                .map_err(|e| CliError::InvalidInput(format!("Invalid selection data: {}", e)))?;
             Ok(Some(data))
         } else {
             Ok(None)

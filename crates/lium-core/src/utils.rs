@@ -1,8 +1,5 @@
-use crate::errors::{LiumError, Result};
-use lium_core::ExecutorInfo;
+use crate::{errors::LiumError, models::ExecutorInfo, Result};
 use std::collections::HashMap;
-use std::path::Path;
-use std::process::Command;
 
 /// Parse executor index from user input (1-based to 0-based)
 pub fn parse_executor_index(input: &str, max_index: usize) -> Result<usize> {
@@ -142,27 +139,6 @@ pub fn find_pareto_optimal(executors: &[ExecutorInfo]) -> Vec<ExecutorInfo> {
     pareto_optimal
 }
 
-/// Validate SSH key path
-pub fn validate_ssh_key_path(path: &str) -> Result<()> {
-    let path = Path::new(path);
-
-    if !path.exists() {
-        return Err(LiumError::InvalidInput(format!(
-            "SSH key file does not exist: {}",
-            path.display()
-        )));
-    }
-
-    if !path.is_file() {
-        return Err(LiumError::InvalidInput(format!(
-            "SSH key path is not a file: {}",
-            path.display()
-        )));
-    }
-
-    Ok(())
-}
-
 /// Validate Docker image name
 pub fn validate_docker_image(image: &str) -> Result<()> {
     if image.is_empty() {
@@ -189,76 +165,6 @@ pub fn validate_docker_image(image: &str) -> Result<()> {
     }
 
     Ok(())
-}
-
-/// Format duration in human-readable format
-pub fn format_duration(seconds: u64) -> String {
-    let days = seconds / 86400;
-    let hours = (seconds % 86400) / 3600;
-    let minutes = (seconds % 3600) / 60;
-    let secs = seconds % 60;
-
-    if days > 0 {
-        format!("{}d {}h {}m {}s", days, hours, minutes, secs)
-    } else if hours > 0 {
-        format!("{}h {}m {}s", hours, minutes, secs)
-    } else if minutes > 0 {
-        format!("{}m {}s", minutes, secs)
-    } else {
-        format!("{}s", secs)
-    }
-}
-
-/// Format file size in human-readable format
-pub fn format_file_size(bytes: u64) -> String {
-    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
-    let mut size = bytes as f64;
-    let mut unit_index = 0;
-
-    while size >= 1024.0 && unit_index < UNITS.len() - 1 {
-        size /= 1024.0;
-        unit_index += 1;
-    }
-
-    if unit_index == 0 {
-        format!("{} {}", bytes, UNITS[unit_index])
-    } else {
-        format!("{:.1} {}", size, UNITS[unit_index])
-    }
-}
-
-/// Check if a command exists in PATH
-pub fn command_exists(command: &str) -> bool {
-    Command::new("which")
-        .arg(command)
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
-}
-
-/// Generate a random string for temporary names
-pub fn generate_random_string(length: usize) -> String {
-    use rand::Rng;
-    const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
-    let mut rng = rand::rng();
-
-    (0..length)
-        .map(|_| {
-            let idx = rng.random_range(0..CHARSET.len());
-            CHARSET[idx] as char
-        })
-        .collect()
-}
-
-/// Truncate string to specified length with ellipsis
-pub fn truncate_string(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else if max_len <= 3 {
-        "...".to_string()
-    } else {
-        format!("{}...", &s[..max_len - 3])
-    }
 }
 
 /// Parse environment variables from string format "KEY=VALUE,KEY2=VALUE2"
@@ -327,88 +233,10 @@ pub fn parse_port_mappings(ports_str: &str) -> Result<HashMap<String, String>> {
     Ok(port_mappings)
 }
 
-/// Synchronize directory with remote pod using rsync
-pub async fn rsync_directory(
-    local_path: &Path,
-    remote_path: &str,
-    host: &str,
-    port: u16,
-    user: &str,
-    private_key_path: &Path,
-    direction: crate::sdk::RSyncDirection,
-    delete: bool,
-    exclude: Option<Vec<String>>,
-) -> Result<()> {
-    use std::process::Command;
-
-    // Validate that rsync is available
-    if !command_exists("rsync") {
-        return Err(LiumError::Command(
-            "rsync command not found. Please install rsync.".to_string(),
-        ));
-    }
-
-    let mut rsync_cmd = Command::new("rsync");
-
-    // Common rsync options
-    rsync_cmd.args([
-        "-avz", // Archive mode, verbose, compress
-        "-e",
-        &format!(
-            "ssh -i {} -p {} -o StrictHostKeyChecking=no",
-            private_key_path.display(),
-            port
-        ),
-    ]);
-
-    // Add delete option if requested
-    if delete {
-        rsync_cmd.arg("--delete");
-    }
-
-    // Add exclude patterns
-    if let Some(excludes) = exclude {
-        for pattern in excludes {
-            rsync_cmd.args(["--exclude", &pattern]);
-        }
-    }
-
-    // Set source and destination based on direction
-    let (source, destination) = match direction {
-        crate::sdk::RSyncDirection::Upload => {
-            let source = if local_path.is_dir() {
-                format!("{}/", local_path.display())
-            } else {
-                local_path.display().to_string()
-            };
-            let destination = format!("{}@{}:{}", user, host, remote_path);
-            (source, destination)
-        }
-        crate::sdk::RSyncDirection::Download => {
-            let source = format!("{}@{}:{}", user, host, remote_path);
-            let destination = local_path.display().to_string();
-            (source, destination)
-        }
-    };
-
-    rsync_cmd.args([&source, &destination]);
-
-    // Execute rsync
-    let output = rsync_cmd
-        .output()
-        .map_err(|e| LiumError::Command(format!("Failed to execute rsync: {}", e)))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(LiumError::Command(format!("Rsync failed: {}", stderr)));
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_parse_executor_index() {
@@ -430,14 +258,6 @@ mod tests {
     }
 
     #[test]
-    fn test_format_duration() {
-        assert_eq!(format_duration(30), "30s");
-        assert_eq!(format_duration(90), "1m 30s");
-        assert_eq!(format_duration(3661), "1h 1m 1s");
-        assert_eq!(format_duration(90061), "1d 1h 1m 1s");
-    }
-
-    #[test]
     fn test_parse_env_vars() {
         let env_vars = parse_env_vars("KEY1=value1,KEY2=value2").unwrap();
         assert_eq!(env_vars.get("KEY1"), Some(&"value1".to_string()));
@@ -446,9 +266,64 @@ mod tests {
         assert!(parse_env_vars("INVALID").is_err());
         assert!(parse_env_vars("=value").is_err());
     }
+
+    #[test]
+    fn test_filter_by_gpu_type() {
+        let executors = vec![
+            create_test_executor("1", "RTX4090", 1.0, true),
+            create_test_executor("2", "H100", 2.0, true),
+            create_test_executor("3", "RTX4090", 1.5, false),
+        ];
+
+        let filtered = filter_by_gpu_type(&executors, "RTX4090");
+        assert_eq!(filtered.len(), 2);
+        assert!(filtered.iter().all(|e| e.gpu_type.contains("RTX4090")));
+    }
+
+    #[test]
+    fn test_filter_by_availability() {
+        let executors = vec![
+            create_test_executor("1", "RTX4090", 1.0, true),
+            create_test_executor("2", "H100", 2.0, false),
+            create_test_executor("3", "RTX4090", 1.5, true),
+        ];
+
+        let filtered = filter_by_availability(&executors, true);
+        assert_eq!(filtered.len(), 2);
+        assert!(filtered.iter().all(|e| e.available));
+    }
+
+    fn create_test_executor(
+        huid: &str,
+        gpu_type: &str,
+        price: f64,
+        available: bool,
+    ) -> ExecutorInfo {
+        ExecutorInfo {
+            id: format!("exec_{}", huid),
+            huid: huid.to_string(),
+            machine_name: format!("machine-{}-{}", gpu_type.to_lowercase(), huid),
+            gpu_type: gpu_type.to_string(),
+            gpu_count: 1,
+            price_per_gpu_hour: price,
+            price_per_hour: price,
+            available,
+            status: if available {
+                "available".to_string()
+            } else {
+                "rented".to_string()
+            },
+            location: HashMap::new(),
+            specs: json!({
+                "cpu_cores": 8,
+                "memory_gb": 32,
+                "storage_gb": 500
+            }),
+        }
+    }
 }
 
-// TODO: Add more sophisticated filtering options
+// TODO: Add more sophisticated filtering options (location, specs)
 // TODO: Add caching for expensive operations
 // TODO: Add input validation for more data types
 // TODO: Add support for regex patterns in filters

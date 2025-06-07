@@ -1,17 +1,116 @@
-use crate::config::Config;
-use crate::docker_utils::build_and_push_image;
-use crate::errors::Result;
+use crate::{config::Config, CliError, Result};
 use dialoguer::{Input, Password};
+use lium_api::LiumApiClient;
+use lium_utils::build_and_push_image;
 use std::path::Path;
 
 /// Handle the image command for Docker image management
-pub async fn handle_image(name: String, dockerfile_dir: String, config: &Config) -> Result<()> {
+pub async fn handle(action: crate::ImageCommands, config: &Config) -> Result<()> {
+    use crate::ImageCommands;
+    use lium_api::LiumApiClient;
+
+    let api_client = LiumApiClient::from_config(config)?;
+
+    match action {
+        ImageCommands::List => handle_list(&api_client).await,
+        ImageCommands::Create { name, image, tag } => handle_create(name, image, tag, config).await,
+        ImageCommands::Delete { id } => handle_delete(&api_client, id).await,
+    }
+}
+
+/// Handle listing templates
+async fn handle_list(api_client: &LiumApiClient) -> Result<()> {
+    println!("📋 Fetching available templates...");
+
+    match api_client.get_templates().await {
+        Ok(templates) => {
+            if templates.is_empty() {
+                println!("No templates found.");
+                return Ok(());
+            }
+
+            println!("\n🎯 Available Templates:");
+            println!(
+                "{:<20} {:<30} {:<15} {:<12}",
+                "ID", "Name", "Image", "Status"
+            );
+            println!("{}", "─".repeat(80));
+
+            for template in templates {
+                println!(
+                    "{:<20} {:<30} {:<15} {:<12}",
+                    template.id,
+                    template.name,
+                    template.docker_image,
+                    template.status.as_deref().unwrap_or("unknown")
+                );
+            }
+        }
+        Err(e) => {
+            println!("❌ Failed to fetch templates: {}", e);
+            return Err(e.into());
+        }
+    }
+
+    Ok(())
+}
+
+/// Handle creating a new template
+async fn handle_create(
+    name: String,
+    image: String,
+    tag: Option<String>,
+    config: &Config,
+) -> Result<()> {
+    let tag = tag.unwrap_or_else(|| "latest".to_string());
+    let full_image = format!("{}:{}", image, tag);
+
+    println!("🐳 Creating template: {}", name);
+    println!("📦 Docker image: {}", full_image);
+
+    let api_client = LiumApiClient::from_config(config)?;
+
+    // Create template from existing Docker image
+    match api_client.post_image(&name, &full_image, &tag).await {
+        Ok(_) => {
+            println!("✅ Template created successfully!");
+            println!("🎯 Template name: {}", name);
+            println!("📦 Docker image: {}", full_image);
+
+            // Wait for verification
+            println!("🔄 Waiting for image verification...");
+            if let Err(e) = wait_for_image_verification(&api_client, &name).await {
+                println!("⚠️  Image verification polling failed: {}", e);
+                println!("💡 You can check the status manually with 'lium image list'");
+            }
+        }
+        Err(e) => {
+            println!("❌ Failed to create template: {}", e);
+            return Err(e.into());
+        }
+    }
+
+    Ok(())
+}
+
+/// Handle deleting a template
+async fn handle_delete(_api_client: &LiumApiClient, id: String) -> Result<()> {
+    println!("🗑️  Deleting template: {}", id);
+
+    // TODO: Implement delete_template in API client
+    Err(CliError::OperationFailed(
+        "Template deletion not yet implemented in API client".to_string(),
+    ))
+}
+
+/// Legacy function - for backwards compatibility if needed
+pub async fn handle_legacy(name: String, dockerfile_dir: String, config: &Config) -> Result<()> {
     println!("🐳 Building and pushing Docker image: {}", name);
 
     // Validate dockerfile directory
     let dockerfile_path = Path::new(&dockerfile_dir);
     if !dockerfile_path.exists() {
-        return Err(crate::errors::LiumError::InvalidInput(format!(
+        return Err(CliError::InvalidInput(format!(
             "Directory not found: {}",
             dockerfile_dir
         )));
@@ -19,7 +118,7 @@ pub async fn handle_image(name: String, dockerfile_dir: String, config: &Config)
 
     let dockerfile = dockerfile_path.join("Dockerfile");
     if !dockerfile.exists() {
-        return Err(crate::errors::LiumError::InvalidInput(format!(
+        return Err(CliError::InvalidInput(format!(
             "Dockerfile not found in: {}",
             dockerfile_dir
         )));
@@ -41,7 +140,7 @@ pub async fn handle_image(name: String, dockerfile_dir: String, config: &Config)
     // Register the image with Lium API
     println!("📝 Registering image with Lium...");
 
-    let api_client = crate::api::LiumApiClient::from_config()?;
+    let api_client = lium_api::LiumApiClient::from_config(config)?;
 
     // Extract tag from image name (after the colon)
     let (image_name_part, tag) = if let Some((name_part, tag_part)) = name.split_once(':') {
@@ -90,15 +189,15 @@ async fn get_docker_credentials(config: &Config) -> Result<(String, String)> {
     let username: String = Input::new()
         .with_prompt("Docker Hub username")
         .interact()
-        .map_err(|e| crate::errors::LiumError::InvalidInput(format!("Input error: {}", e)))?;
+        .map_err(|e| CliError::InvalidInput(format!("Input error: {}", e)))?;
 
     let token: String = Password::new()
         .with_prompt("Docker Hub access token")
         .interact()
-        .map_err(|e| crate::errors::LiumError::InvalidInput(format!("Input error: {}", e)))?;
+        .map_err(|e| CliError::InvalidInput(format!("Input error: {}", e)))?;
 
     if username.trim().is_empty() || token.trim().is_empty() {
-        return Err(crate::errors::LiumError::InvalidInput(
+        return Err(CliError::InvalidInput(
             "Username and token cannot be empty".to_string(),
         ));
     }
@@ -115,7 +214,7 @@ async fn get_docker_credentials(config: &Config) -> Result<(String, String)> {
 
 /// Wait for image verification to complete
 async fn wait_for_image_verification(
-    api_client: &crate::api::LiumApiClient,
+    api_client: &lium_api::LiumApiClient,
     image_name: &str,
 ) -> Result<()> {
     use tokio::time::{sleep, Duration};
@@ -141,7 +240,7 @@ async fn wait_for_image_verification(
                                 return Ok(());
                             }
                             Some("VERIFY_FAILED") => {
-                                return Err(crate::errors ::LiumError::OperationFailed(
+                                return Err(CliError::OperationFailed(
                                     "Image verification failed. Please check your image and try again.".to_string()
                                 ));
                             }
@@ -166,7 +265,7 @@ async fn wait_for_image_verification(
         }
     }
 
-    Err(crate::errors::LiumError::OperationFailed(
+    Err(CliError::OperationFailed(
         "Image verification polling timed out. Check status manually.".to_string(),
     ))
 }

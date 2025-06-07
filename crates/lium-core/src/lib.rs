@@ -18,6 +18,7 @@
 pub mod errors;
 pub mod models;
 pub mod optimization;
+pub mod utils;
 
 // Re-export commonly used types
 pub use errors::{LiumError, Result};
@@ -27,4 +28,9 @@ pub use models::{
 pub use optimization::{
     calculate_pareto_frontier, dominates, extract_executor_metrics, extract_metrics,
     DefaultParetoOptimizer, ExecutorMetricsExtractor, MetricsExtractor, ParetoOptimizer,
+};
+pub use utils::{
+    filter_by_availability, filter_by_gpu_type, filter_by_price_range, find_pareto_optimal,
+    group_by_gpu_type, parse_env_vars, parse_executor_index, parse_gpu_filter, parse_port_mappings,
+    parse_price_range, sort_by_gpu_count, sort_by_price, validate_docker_image,
 };

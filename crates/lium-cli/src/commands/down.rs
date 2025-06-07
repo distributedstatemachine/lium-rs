@@ -1,17 +1,16 @@
-use crate::config::Config;
-use crate::errors::Result;
-use crate::helpers::resolve_pod_targets;
+use crate::{config::Config, helpers::resolve_pod_targets, CliError, Result};
 use dialoguer::Confirm;
+use lium_api::LiumApiClient;
 
 /// Handle the down command for stopping pods
-pub async fn handle_down(pods: Vec<String>, all: bool, yes: bool, config: &Config) -> Result<()> {
-    let api_client = crate::api::LiumApiClient::from_config()?;
+pub async fn handle(pods: Vec<String>, all: bool, yes: bool, config: &Config) -> Result<()> {
+    let api_client = LiumApiClient::from_config(config)?;
 
     // Determine targets
     let targets = if all {
         vec!["all".to_string()]
     } else if pods.is_empty() {
-        return Err(crate::errors::LiumError::InvalidInput(
+        return Err(CliError::InvalidInput(
             "No pod targets specified. Use --all to stop all pods or specify pod targets."
                 .to_string(),
         ));
@@ -47,9 +46,7 @@ pub async fn handle_down(pods: Vec<String>, all: bool, yes: bool, config: &Confi
             ))
             .default(false)
             .interact()
-            .map_err(|e| {
-                lium_core::errors::LiumError::InvalidInput(format!("Input error: {}", e))
-            })?;
+            .map_err(|e| CliError::InvalidInput(format!("Input error: {}", e)))?;
 
         if !confirm {
             println!("❌ Operation cancelled.");

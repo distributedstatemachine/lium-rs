@@ -1,7 +1,7 @@
 // Docker utilities - stub for now
 pub fn placeholder() {}
 
-use crate::errors::{DockerError, LiumError, Result};
+use crate::errors::{DockerError, Result, UtilsError};
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -39,7 +39,7 @@ async fn login_to_docker(username: &str, token: &str) -> Result<()> {
         .stderr(Stdio::piped());
 
     let mut child = login_command.spawn().map_err(|e| {
-        LiumError::Docker(DockerError::CommandFailed(format!(
+        UtilsError::Docker(DockerError::CommandFailed(format!(
             "Failed to start docker login: {}",
             e
         )))
@@ -49,7 +49,7 @@ async fn login_to_docker(username: &str, token: &str) -> Result<()> {
     if let Some(stdin) = child.stdin.as_mut() {
         use std::io::Write;
         stdin.write_all(token.as_bytes()).map_err(|e| {
-            LiumError::Docker(DockerError::CommandFailed(format!(
+            UtilsError::Docker(DockerError::CommandFailed(format!(
                 "Failed to write password: {}",
                 e
             )))
@@ -57,7 +57,7 @@ async fn login_to_docker(username: &str, token: &str) -> Result<()> {
     }
 
     let output = child.wait_with_output().map_err(|e| {
-        LiumError::Docker(DockerError::CommandFailed(format!(
+        UtilsError::Docker(DockerError::CommandFailed(format!(
             "Failed to wait for docker login: {}",
             e
         )))
@@ -65,7 +65,7 @@ async fn login_to_docker(username: &str, token: &str) -> Result<()> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(LiumError::Docker(DockerError::LoginFailed(
+        return Err(UtilsError::Docker(DockerError::LoginFailed(
             stderr.to_string(),
         )));
     }
@@ -77,7 +77,7 @@ async fn login_to_docker(username: &str, token: &str) -> Result<()> {
 /// Build Docker image
 async fn build_docker_image(image_name: &str, dockerfile_path: &Path) -> Result<String> {
     let dockerfile_dir = dockerfile_path.parent().ok_or_else(|| {
-        LiumError::Docker(DockerError::InvalidPath(
+        UtilsError::Docker(DockerError::InvalidPath(
             "Invalid Dockerfile path".to_string(),
         ))
     })?;
@@ -97,7 +97,7 @@ async fn build_docker_image(image_name: &str, dockerfile_path: &Path) -> Result<
     println!("Building Docker image: {}", image_name);
 
     let mut child = build_command.spawn().map_err(|e| {
-        LiumError::Docker(DockerError::CommandFailed(format!(
+        UtilsError::Docker(DockerError::CommandFailed(format!(
             "Failed to start docker build: {}",
             e
         )))
@@ -115,7 +115,7 @@ async fn build_docker_image(image_name: &str, dockerfile_path: &Path) -> Result<
     }
 
     let output = child.wait_with_output().map_err(|e| {
-        LiumError::Docker(DockerError::CommandFailed(format!(
+        UtilsError::Docker(DockerError::CommandFailed(format!(
             "Failed to wait for docker build: {}",
             e
         )))
@@ -123,7 +123,7 @@ async fn build_docker_image(image_name: &str, dockerfile_path: &Path) -> Result<
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(LiumError::Docker(DockerError::BuildFailed(
+        return Err(UtilsError::Docker(DockerError::BuildFailed(
             stderr.to_string(),
         )));
     }
@@ -147,7 +147,7 @@ async fn push_docker_image(image_name: &str) -> Result<()> {
     println!("Pushing Docker image: {}", image_name);
 
     let mut child = push_command.spawn().map_err(|e| {
-        LiumError::Docker(DockerError::CommandFailed(format!(
+        UtilsError::Docker(DockerError::CommandFailed(format!(
             "Failed to start docker push: {}",
             e
         )))
@@ -165,7 +165,7 @@ async fn push_docker_image(image_name: &str) -> Result<()> {
     }
 
     let output = child.wait_with_output().map_err(|e| {
-        LiumError::Docker(DockerError::CommandFailed(format!(
+        UtilsError::Docker(DockerError::CommandFailed(format!(
             "Failed to wait for docker push: {}",
             e
         )))
@@ -173,7 +173,7 @@ async fn push_docker_image(image_name: &str) -> Result<()> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(LiumError::Docker(DockerError::PushFailed(
+        return Err(UtilsError::Docker(DockerError::PushFailed(
             stderr.to_string(),
         )));
     }
@@ -194,7 +194,7 @@ async fn get_image_digest(image_name: &str) -> Result<String> {
         .stderr(Stdio::piped());
 
     let output = inspect_command.output().map_err(|e| {
-        LiumError::Docker(DockerError::CommandFailed(format!(
+        UtilsError::Docker(DockerError::CommandFailed(format!(
             "Failed to inspect image: {}",
             e
         )))
@@ -210,7 +210,7 @@ async fn get_image_digest(image_name: &str) -> Result<String> {
             .arg(image_name);
 
         let id_output = id_command.output().map_err(|e| {
-            LiumError::Docker(DockerError::CommandFailed(format!(
+            UtilsError::Docker(DockerError::CommandFailed(format!(
                 "Failed to get image ID: {}",
                 e
             )))
@@ -224,7 +224,7 @@ async fn get_image_digest(image_name: &str) -> Result<String> {
         }
 
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(LiumError::Docker(DockerError::CommandFailed(format!(
+        return Err(UtilsError::Docker(DockerError::CommandFailed(format!(
             "Failed to get image digest: {}",
             stderr
         ))));
@@ -248,7 +248,7 @@ pub fn check_docker_available() -> Result<()> {
         .arg("{{.Server.Version}}")
         .output()
         .map_err(|e| {
-            LiumError::Docker(DockerError::NotAvailable(format!(
+            UtilsError::Docker(DockerError::NotAvailable(format!(
                 "Docker not available: {}",
                 e
             )))
@@ -256,7 +256,7 @@ pub fn check_docker_available() -> Result<()> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(LiumError::Docker(DockerError::NotAvailable(format!(
+        return Err(UtilsError::Docker(DockerError::NotAvailable(format!(
             "Docker not running: {}",
             stderr
         ))));
@@ -271,21 +271,21 @@ pub fn check_docker_available() -> Result<()> {
 /// Validate Docker image name format
 pub fn validate_image_name(image_name: &str) -> Result<()> {
     if image_name.is_empty() {
-        return Err(LiumError::Docker(DockerError::InvalidImageName(
+        return Err(UtilsError::Docker(DockerError::InvalidImageName(
             "Image name cannot be empty".to_string(),
         )));
     }
 
     // Basic validation - Docker image names should not contain uppercase letters
     if image_name.chars().any(|c| c.is_uppercase()) {
-        return Err(LiumError::Docker(DockerError::InvalidImageName(
+        return Err(UtilsError::Docker(DockerError::InvalidImageName(
             "Image name cannot contain uppercase letters".to_string(),
         )));
     }
 
     // Should contain a username/organization for Docker Hub
     if !image_name.contains('/') {
-        return Err(LiumError::Docker(DockerError::InvalidImageName(
+        return Err(UtilsError::Docker(DockerError::InvalidImageName(
             "Image name should include username (e.g., username/image-name)".to_string(),
         )));
     }

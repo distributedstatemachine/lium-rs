@@ -5,6 +5,20 @@ use lium_core::{
 use reqwest::{Client, Response, StatusCode};
 use serde_json::Value;
 
+/// Trait for providing configuration to the API client
+/// This allows the main application to implement config without circular dependencies
+pub trait ApiConfig {
+    type Error;
+
+    /// Get the API key for authentication
+    fn get_api_key(&self) -> std::result::Result<String, Self::Error>;
+
+    /// Get the base URL for the API (optional, defaults to official API)
+    fn get_base_url(&self) -> std::result::Result<Option<String>, Self::Error> {
+        Ok(None)
+    }
+}
+
 /// HTTP client for interacting with the Celium Compute API
 #[derive(Debug, Clone)]
 pub struct LiumApiClient {
@@ -35,6 +49,26 @@ impl LiumApiClient {
         })?;
 
         Ok(Self::new(api_key, None))
+    }
+
+    /// Create API client from provided API key (convenience method)
+    pub fn from_api_key(api_key: String) -> Self {
+        Self::new(api_key, None)
+    }
+
+    /// Create API client with custom base URL  
+    pub fn with_base_url(api_key: String, base_url: String) -> Self {
+        Self::new(api_key, Some(base_url))
+    }
+
+    /// Create API client from any configuration implementing ApiConfig trait
+    pub fn from_config<C>(config: &C) -> std::result::Result<Self, C::Error>
+    where
+        C: ApiConfig,
+    {
+        let api_key = config.get_api_key()?;
+        let base_url = config.get_base_url()?;
+        Ok(Self::new(api_key, base_url))
     }
 
     /// Make a GET request

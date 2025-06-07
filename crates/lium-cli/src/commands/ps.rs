@@ -1,7 +1,7 @@
-use crate::api::LiumApiClient;
+use lium_api::LiumApiClient;
 use crate::config::Config;
 use crate::display::{display_pod_details, display_pods_table};
-use crate::errors::Result;
+use crate::Result;
 use crate::helpers::{resolve_pod_targets, store_pod_selection};
 use clap::Args;
 
@@ -24,8 +24,8 @@ pub struct PsArgs {
     pub gpu: Option<String>,
 }
 
-pub async fn handle_ps(args: PsArgs, _config: &Config) -> Result<()> {
-    let client = LiumApiClient::from_config()?;
+pub async fn handle(args: PsArgs, config: &Config) -> Result<()> {
+    let client = LiumApiClient::from_config(config)?;
 
     // If specific targets are provided, show details for those pods
     if !args.targets.is_empty() {

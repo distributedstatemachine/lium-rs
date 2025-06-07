@@ -1,12 +1,14 @@
-use crate::api::LiumApiClient;
-use crate::config::Config;
-use crate::display::{display_executors_table, display_gpu_summary};
-use crate::errors::Result;
-use crate::utils::{
+use crate::{
+    config::Config,
+    display::{display_executors_table, display_gpu_summary},
+    Result,
+};
+use clap::Args;
+use lium_api::LiumApiClient;
+use lium_core::{
     filter_by_availability, filter_by_gpu_type, filter_by_price_range, find_pareto_optimal,
     group_by_gpu_type, parse_price_range, sort_by_gpu_count, sort_by_price,
 };
-use clap::Args;
 
 #[derive(Args)]
 pub struct LsArgs {
@@ -43,8 +45,8 @@ pub struct LsArgs {
     pub limit: Option<usize>,
 }
 
-pub async fn handle_ls(args: LsArgs, _config: &Config) -> Result<()> {
-    let client = LiumApiClient::from_config()?;
+pub async fn handle(args: LsArgs, config: &Config) -> Result<()> {
+    let client = LiumApiClient::from_config(config)?;
 
     // Fetch executors from API
     let mut executors = client.get_executors().await?;
@@ -131,8 +133,8 @@ mod tests {
         gpu_type: &str,
         price: f64,
         available: bool,
-    ) -> lium_api::ExecutorInfo {
-        lium_api::ExecutorInfo {
+    ) -> lium_core::ExecutorInfo {
+        lium_core::ExecutorInfo {
             id: format!("exec_{}", huid),
             huid: huid.to_string(),
             machine_name: format!("machine-{}-{}", gpu_type.to_lowercase(), huid),

@@ -1,10 +1,13 @@
-use crate::config::Config;
-use crate::errors::Result;
-use crate::helpers::{parse_ssh_command, resolve_pod_targets};
+use crate::{
+    config::Config,
+    helpers::{parse_ssh_command, resolve_pod_targets},
+    CliError, Result,
+};
+use lium_api::LiumApiClient;
 use std::process::Command;
 
 /// Handle the rsync command for directory synchronization
-pub async fn handle_rsync(
+pub async fn handle(
     source: String,
     destination: String,
     options: Vec<String>,
@@ -16,19 +19,19 @@ pub async fn handle_rsync(
 
     // Validate that exactly one side is remote
     if source_is_remote && dest_is_remote {
-        return Err(crate::errors::LiumError::InvalidInput(
+        return Err(CliError::InvalidInput(
             "Remote-to-remote rsync is not supported. One path must be local.".to_string(),
         ));
     }
 
     if !source_is_remote && !dest_is_remote {
-        return Err(crate::errors::LiumError::InvalidInput(
+        return Err(CliError::InvalidInput(
             "Both paths are local. At least one must be a pod target (pod_target:path)."
                 .to_string(),
         ));
     }
 
-    let api_client = crate::api::LiumApiClient::from_config()?;
+    let api_client = LiumApiClient::from_config(config)?;
 
     // Determine which side is remote and resolve the pod
     let (pod_target, is_upload) = if source_is_remote {
@@ -41,14 +44,14 @@ pub async fn handle_rsync(
     let resolved_pods = resolve_pod_targets(&api_client, &[pod_target.clone()]).await?;
 
     if resolved_pods.is_empty() {
-        return Err(crate::errors::LiumError::InvalidInput(format!(
+        return Err(CliError::InvalidInput(format!(
             "Pod not found: {}",
             pod_target
         )));
     }
 
     if resolved_pods.len() > 1 {
-        return Err(crate::errors::LiumError::InvalidInput(
+        return Err(CliError::InvalidInput(
             "Rsync command requires exactly one pod target".to_string(),
         ));
     }
@@ -57,10 +60,7 @@ pub async fn handle_rsync(
 
     // Parse SSH details
     let ssh_cmd = pod.ssh_cmd.as_ref().ok_or_else(|| {
-        crate::errors::LiumError::InvalidInput(format!(
-            "Pod {} has no SSH connection info",
-            pod.huid
-        ))
+        CliError::InvalidInput(format!("Pod {} has no SSH connection info", pod.huid))
     })?;
 
     let (host, port, user) = parse_ssh_command(ssh_cmd)?;
@@ -114,12 +114,12 @@ pub async fn handle_rsync(
     let status = Command::new("rsync")
         .args(&rsync_args)
         .status()
-        .map_err(crate::errors::LiumError::Io)?;
+        .map_err(CliError::Io)?;
 
     if status.success() {
         println!("✅ Rsync completed successfully");
     } else {
-        return Err(crate::errors::LiumError::OperationFailed(format!(
+        return Err(CliError::OperationFailed(format!(
             "Rsync failed with exit code: {:?}",
             status.code()
         )));

@@ -1,24 +1,27 @@
-use crate::config::Config;
-use crate::errors::Result;
-use crate::helpers::{parse_ssh_command, resolve_pod_targets};
+use crate::{
+    config::Config,
+    helpers::{parse_ssh_command, resolve_pod_targets},
+    CliError, Result,
+};
+use lium_api::LiumApiClient;
 use std::process::Command;
 
 /// Handle the ssh command for interactive SSH sessions
-pub async fn handle_ssh(pod_target: String, config: &Config) -> Result<()> {
-    let api_client = crate::api::LiumApiClient::from_config()?;
+pub async fn handle(pod_target: String, config: &Config) -> Result<()> {
+    let api_client = LiumApiClient::from_config(config)?;
 
     // Resolve single pod target
     let resolved_pods = resolve_pod_targets(&api_client, &[pod_target.clone()]).await?;
 
     if resolved_pods.is_empty() {
-        return Err(crate::errors::LiumError::InvalidInput(format!(
+        return Err(CliError::InvalidInput(format!(
             "Pod not found: {}",
             pod_target
         )));
     }
 
     if resolved_pods.len() > 1 {
-        return Err(crate::errors::LiumError::InvalidInput(
+        return Err(CliError::InvalidInput(
             "SSH command requires exactly one pod target".to_string(),
         ));
     }
@@ -27,10 +30,7 @@ pub async fn handle_ssh(pod_target: String, config: &Config) -> Result<()> {
 
     // Parse SSH details
     let ssh_cmd = pod.ssh_cmd.as_ref().ok_or_else(|| {
-        crate::errors::LiumError::InvalidInput(format!(
-            "Pod {} has no SSH connection info",
-            pod.huid
-        ))
+        CliError::InvalidInput(format!("Pod {} has no SSH connection info", pod.huid))
     })?;
 
     let (host, port, user) = parse_ssh_command(ssh_cmd)?;
@@ -61,10 +61,10 @@ pub async fn handle_ssh(pod_target: String, config: &Config) -> Result<()> {
     let status = Command::new("ssh")
         .args(&ssh_args)
         .status()
-        .map_err(crate::errors::LiumError::Io)?;
+        .map_err(CliError::Io)?;
 
     if !status.success() {
-        return Err(crate::errors::LiumError::OperationFailed(format!(
+        return Err(CliError::OperationFailed(format!(
             "SSH connection failed with exit code: {:?}",
             status.code()
         )));

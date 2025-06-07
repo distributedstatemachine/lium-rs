@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::errors::Result;
+use crate::Result;
 use dialoguer::Select;
 
 /// Available themes
@@ -11,8 +11,16 @@ const AVAILABLE_THEMES: &[(&str, &str)] = &[
     ("cyberpunk", "Cyberpunk theme with neon colors"),
 ];
 
+/// Handle theme command with different actions
+pub async fn handle(action: crate::ThemeCommands, config: &Config) -> Result<()> {
+    match action {
+        crate::ThemeCommands::List => handle_list().await,
+        crate::ThemeCommands::Set { name } => handle_set(Some(name), config).await,
+    }
+}
+
 /// Handle theme list command
-pub async fn handle_theme_list() -> Result<()> {
+async fn handle_list() -> Result<()> {
     println!("🎨 Available themes:");
     for (name, description) in AVAILABLE_THEMES {
         println!("  {} - {}", name, description);
@@ -21,13 +29,13 @@ pub async fn handle_theme_list() -> Result<()> {
 }
 
 /// Handle theme set command
-pub async fn handle_theme_set(name: Option<String>) -> Result<()> {
-    let mut config = Config::new()?;
+async fn handle_set(name: Option<String>, config: &Config) -> Result<()> {
+    let config = config.clone();
 
     let theme_name = if let Some(name) = name {
         // Validate the provided theme name
         if !AVAILABLE_THEMES.iter().any(|(theme, _)| *theme == name) {
-            return Err(crate::errors::LiumError::InvalidInput(format!(
+            return Err(crate::CliError::InvalidInput(format!(
                 "Unknown theme: {}. Use 'lium theme list' to see available themes.",
                 name
             )));
@@ -45,27 +53,23 @@ pub async fn handle_theme_set(name: Option<String>) -> Result<()> {
             .items(&theme_options)
             .default(0)
             .interact()
-            .map_err(|e| crate::errors::LiumError::InvalidInput(format!("Input error: {}", e)))?;
+            .map_err(|e| crate::CliError::InvalidInput(format!("Input error: {}", e)))?;
 
         AVAILABLE_THEMES[selection].0.to_string()
     };
 
-    // Store theme in config
-    config.set_value("display", "theme", &theme_name)?;
-    config.save()?;
-
+    // For now, just print success - we'll need to add theme storage to config later
     println!("✅ Theme set to: {}", theme_name);
     println!("💡 The theme will be applied to future command outputs");
+    println!("⚠️  Theme persistence not yet implemented in TOML config");
 
     Ok(())
 }
 
 /// Get the current theme from config
-pub fn get_current_theme(config: &Config) -> String {
-    config
-        .get_value("display", "theme")
-        .unwrap_or(None)
-        .unwrap_or_else(|| "default".to_string())
+pub fn get_current_theme(_config: &Config) -> String {
+    // TODO: Implement theme storage in TOML config
+    "default".to_string()
 }
 
 /// Apply theme colors to a string (for display utilities)

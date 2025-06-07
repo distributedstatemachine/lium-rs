@@ -1,9 +1,18 @@
 use crate::config::Config;
-use crate::errors::Result;
+use crate::Result;
+
+/// Handle fund command with different actions
+pub async fn handle(action: crate::FundCommands, config: &Config) -> Result<()> {
+    match action {
+        crate::FundCommands::Balance => handle_balance(config).await,
+        crate::FundCommands::Add { amount } => handle_add(amount, config).await,
+        crate::FundCommands::History => handle_history(config).await,
+    }
+}
 
 /// Handle fund balance command
-pub async fn handle_fund_balance(_config: &Config) -> Result<()> {
-    let api_client = crate::api::LiumApiClient::from_config()?;
+async fn handle_balance(config: &Config) -> Result<()> {
+    let api_client = lium_api::LiumApiClient::from_config(config)?;
 
     println!("💰 Fetching wallet balance...");
 
@@ -39,7 +48,7 @@ pub async fn handle_fund_balance(_config: &Config) -> Result<()> {
 }
 
 /// Handle fund add command
-pub async fn handle_fund_add(amount: f64, _config: &Config) -> Result<()> {
+async fn handle_add(amount: f64, config: &Config) -> Result<()> {
     println!("💸 Adding funds: {} TAO", amount);
 
     // Note: This is a simplified implementation
@@ -64,8 +73,8 @@ pub async fn handle_fund_add(amount: f64, _config: &Config) -> Result<()> {
 }
 
 /// Handle fund history command
-pub async fn handle_fund_history(_config: &Config) -> Result<()> {
-    let api_client = crate::api::LiumApiClient::from_config()?;
+async fn handle_history(config: &Config) -> Result<()> {
+    let api_client = lium_api::LiumApiClient::from_config(config)?;
 
     println!("📈 Fetching funding history...");
 
@@ -91,8 +100,8 @@ pub async fn handle_fund_history(_config: &Config) -> Result<()> {
 }
 
 /// Add wallet to Lium (simplified - would need full bittensor integration)
-pub async fn add_wallet_to_lium(coldkey_ss58: &str, _config: &Config) -> Result<()> {
-    let api_client = crate::api::LiumApiClient::from_config()?;
+pub async fn add_wallet_to_lium(coldkey_ss58: &str, config: &Config) -> Result<()> {
+    let api_client = lium_api::LiumApiClient::from_config(config)?;
 
     println!("🔗 Adding wallet to Lium account...");
 
@@ -124,14 +133,14 @@ pub async fn add_wallet_to_lium(coldkey_ss58: &str, _config: &Config) -> Result<
 pub fn validate_wallet_address(address: &str) -> Result<()> {
     // Basic SS58 address validation
     if address.len() < 40 || address.len() > 50 {
-        return Err(crate::errors::LiumError::InvalidInput(
+        return Err(crate::CliError::InvalidInput(
             "Invalid wallet address length. Expected SS58 format.".to_string(),
         ));
     }
 
     // Check if it starts with '5' (typical for SS58)
     if !address.starts_with('5') {
-        return Err(crate::errors::LiumError::InvalidInput(
+        return Err(crate::CliError::InvalidInput(
             "Invalid wallet address format. Expected SS58 address starting with '5'.".to_string(),
         ));
     }

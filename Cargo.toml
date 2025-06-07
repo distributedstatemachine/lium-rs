@@ -3,6 +3,7 @@ members = [
     "crates/lium-core",
     "crates/lium-utils", 
     "crates/lium-api",
+    "crates/lium-cli",
     ".",
 ]
 resolver = "2"
@@ -38,70 +39,9 @@ edition = "2021"
 name = "lium"
 path = "src/main.rs"
 
-[lib]
-name = "lium_rs"
-path = "src/lib.rs"
-
 [dependencies]
-# Local crates
-lium-core = { path = "crates/lium-core" }
-lium-utils = { path = "crates/lium-utils" }
-lium-api = { path = "crates/lium-api" }
+# CLI interface - this now contains all the functionality
+lium-cli = { path = "crates/lium-cli" }
 
-# CLI framework
-clap = { version = "4.4", features = ["derive", "env"] }
-
-# HTTP client
-reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+# Minimal runtime for main.rs
 tokio = { workspace = true }
-
-# Serialization
-serde = { workspace = true }
-serde_json = { workspace = true }
-
-# Configuration
-rust-ini = "0.20"
-
-# SSH
-ssh2 = "0.9"
-
-# Docker
-bollard = "0.16"
-
-# UUID generation
-uuid = { workspace = true }
-
-# Terminal UI
-termcolor = "1.4"
-colored = "2.1"
-dialoguer = "0.11"
-
-# Error handling
-anyhow = { workspace = true }
-thiserror = { workspace = true }
-
-# File operations
-home = "0.5"
-dirs = "5.0"
-
-# Async runtime
-futures = { workspace = true }
-
-# Date/time
-chrono = { workspace = true }
-
-# Regex
-regex = { workspace = true }
-
-# Base64 for SSH keys
-base64 = "0.21"
-
-# Environment variables
-dotenv = "0.15"
-
-# Process execution
-which = "4.4"
-
-# URL parsing
-url = "2.4"
-rand = "0.9.1"

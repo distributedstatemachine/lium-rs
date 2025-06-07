@@ -4,7 +4,7 @@
 //! This crate contains SSH, Docker, GPU, and other utility functions
 //! that handle external system interactions.
 
-// pub mod docker; // TODO: Fix Docker module syntax
+pub mod docker;
 pub mod errors;
 pub mod formatters;
 pub mod gpu;
@@ -14,7 +14,7 @@ pub mod pod;
 pub mod ssh;
 
 // Re-export common types for convenience
-// pub use docker::*; // TODO: Fix Docker module syntax
+pub use docker::*;
 pub use errors::*;
 pub use formatters::*;
 pub use gpu::*;

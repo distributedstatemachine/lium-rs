@@ -1,0 +1,57 @@
+[package]
+name = "lium-cli"
+version = "0.1.0"
+edition = "2021"
+description = "Command-line interface for Lium (Celium Compute)"
+authors = ["Lium Team"]
+license = "MIT"
+
+[dependencies]
+# Core domain logic
+lium-core = { path = "../lium-core" }
+# Infrastructure utilities  
+lium-utils = { path = "../lium-utils" }
+# HTTP API client
+lium-api = { path = "../lium-api" }
+
+# CLI framework
+clap = { version = "4.4", features = ["derive"] }
+
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+futures = "0.3"
+
+# User interaction
+dialoguer = "0.11"
+colored = "2.1"
+
+# Configuration
+toml = "0.8"
+home = "0.5"
+dirs = "5.0"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json"] }
+
+# SSH 
+ssh2 = "0.9"
+
+# Random generation
+rand = "0.8"
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+thiserror = "1.0"
+
+# Docker (optional, only if needed)
+bollard = { version = "0.16", optional = true }
+
+[features]
+default = []
+docker = ["bollard"] 

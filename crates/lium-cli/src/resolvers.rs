@@ -1,21 +1,25 @@
-use crate::errors::{LiumError, Result};
+use crate::{CliError, Result};
 use lium_core::PodInfo;
+use std::future::Future;
 
 /// Trait for resolving targets to concrete items
 pub trait TargetResolver<T> {
     type Input;
     type Output;
 
-    async fn resolve_targets(&self, inputs: &[Self::Input]) -> Result<Vec<Self::Output>>;
+    fn resolve_targets(
+        &self,
+        inputs: &[Self::Input],
+    ) -> impl Future<Output = Result<Vec<Self::Output>>> + Send;
 }
 
 /// Pod target resolver
 pub struct PodTargetResolver<'a> {
-    api_client: &'a crate::api::LiumApiClient,
+    api_client: &'a lium_api::LiumApiClient,
 }
 
 impl<'a> PodTargetResolver<'a> {
-    pub fn new(api_client: &'a crate::api::LiumApiClient) -> Self {
+    pub fn new(api_client: &'a lium_api::LiumApiClient) -> Self {
         Self { api_client }
     }
 }
@@ -25,55 +29,57 @@ impl TargetResolver<PodInfo> for PodTargetResolver<'_> {
     type Output = (PodInfo, String);
 
     /// Resolve pod targets (indices, HUIDs, names, "all") to (PodInfo, identifier) pairs
-    async fn resolve_targets(&self, target_inputs: &[Self::Input]) -> Result<Vec<Self::Output>> {
-        let all_pods = self.api_client.get_pods().await?;
-        let mut resolved_pods = Vec::new();
+    fn resolve_targets(
+        &self,
+        target_inputs: &[Self::Input],
+    ) -> impl Future<Output = Result<Vec<Self::Output>>> + Send {
+        async move {
+            let all_pods = self.api_client.get_pods().await?;
+            let mut resolved_pods = Vec::new();
 
-        for target in target_inputs {
-            if target == "all" {
-                // Add all pods
-                for pod in &all_pods {
-                    resolved_pods.push((pod.clone(), "all".to_string()));
-                }
-            } else if let Ok(index) = target.parse::<usize>() {
-                // Numeric index (1-based)
-                if index == 0 || index > all_pods.len() {
-                    return Err(LiumError::InvalidInput(format!(
-                        "Invalid pod index: {}. Valid range: 1-{}",
-                        index,
-                        all_pods.len()
-                    )));
-                }
+            for target in target_inputs {
+                if target == "all" {
+                    // Add all pods
+                    for pod in &all_pods {
+                        resolved_pods.push((pod.clone(), "all".to_string()));
+                    }
+                } else if let Ok(index) = target.parse::<usize>() {
+                    // Numeric index (1-based)
+                    if index == 0 || index > all_pods.len() {
+                        return Err(CliError::InvalidInput(format!(
+                            "Invalid pod index: {}. Valid range: 1-{}",
+                            index,
+                            all_pods.len()
+                        )));
+                    }
 
-                let pod = all_pods[index - 1].clone();
-                resolved_pods.push((pod, target.clone()));
-            } else {
-                // HUID, name, or UUID
-                let mut found = false;
-                for pod in &all_pods {
-                    if pod.huid == *target || pod.name == *target || pod.id == *target {
-                        resolved_pods.push((pod.clone(), target.clone()));
-                        found = true;
-                        break;
+                    let pod = all_pods[index - 1].clone();
+                    resolved_pods.push((pod, target.clone()));
+                } else {
+                    // HUID, name, or UUID
+                    let mut found = false;
+                    for pod in &all_pods {
+                        if pod.huid == *target || pod.name == *target || pod.id == *target {
+                            resolved_pods.push((pod.clone(), target.clone()));
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if !found {
+                        return Err(CliError::InvalidInput(format!("Pod not found: {}", target)));
                     }
                 }
-
-                if !found {
-                    return Err(LiumError::InvalidInput(format!(
-                        "Pod not found: {}",
-                        target
-                    )));
-                }
             }
-        }
 
-        if resolved_pods.is_empty() && !target_inputs.is_empty() {
-            return Err(LiumError::InvalidInput(
-                "No pods matched the specified targets".to_string(),
-            ));
-        }
+            if resolved_pods.is_empty() && !target_inputs.is_empty() {
+                return Err(CliError::InvalidInput(
+                    "No pods matched the specified targets".to_string(),
+                ));
+            }
 
-        Ok(resolved_pods)
+            Ok(resolved_pods)
+        }
     }
 }
 
@@ -94,7 +100,7 @@ impl ExecutorTargetResolver {
             .get("executors")
             .and_then(|v| v.as_array())
             .ok_or_else(|| {
-                LiumError::InvalidInput(
+                CliError::InvalidInput(
                     "No executor selection data found. Run 'lium ls' first.".to_string(),
                 )
             })?;
@@ -103,7 +109,7 @@ impl ExecutorTargetResolver {
             if let Ok(index) = index_str.parse::<usize>() {
                 // Numeric index (1-based)
                 if index == 0 || index > executors.len() {
-                    return Err(LiumError::InvalidInput(format!(
+                    return Err(CliError::InvalidInput(format!(
                         "Invalid executor index: {}. Valid range: 1-{}",
                         index,
                         executors.len()
@@ -112,7 +118,7 @@ impl ExecutorTargetResolver {
 
                 let executor = &executors[index - 1];
                 let id = executor.get("id").and_then(|v| v.as_str()).ok_or_else(|| {
-                    LiumError::InvalidInput("Invalid executor data in selection".to_string())
+                    CliError::InvalidInput("Invalid executor data in selection".to_string())
                 })?;
 
                 resolved_ids.push(id.to_string());
@@ -133,7 +139,7 @@ impl ExecutorTargetResolver {
                 }
 
                 if !found {
-                    return Err(LiumError::InvalidInput(format!(
+                    return Err(CliError::InvalidInput(format!(
                         "Executor not found: {}",
                         index_str
                     )));
@@ -147,7 +153,7 @@ impl ExecutorTargetResolver {
 
 // Convenience functions for backward compatibility and easier usage
 pub async fn resolve_pod_targets(
-    api_client: &crate::api::LiumApiClient,
+    api_client: &lium_api::LiumApiClient,
     target_inputs: &[String],
 ) -> Result<Vec<(PodInfo, String)>> {
     let resolver = PodTargetResolver::new(api_client);
@@ -164,7 +170,7 @@ pub fn resolve_executor_indices(
 
 /// Validate that all provided pod targets exist before performing operations
 pub async fn validate_pod_targets(
-    api_client: &crate::api::LiumApiClient,
+    api_client: &lium_api::LiumApiClient,
     target_inputs: &[String],
 ) -> Result<Vec<PodInfo>> {
     let resolved = resolve_pod_targets(api_client, target_inputs).await?;
@@ -173,20 +179,20 @@ pub async fn validate_pod_targets(
 
 /// Resolve a single pod target (wrapper around resolve_pod_targets for single pod)
 pub async fn resolve_single_pod_target(
-    api_client: &crate::api::LiumApiClient,
+    api_client: &lium_api::LiumApiClient,
     target: &str,
 ) -> Result<PodInfo> {
     let pods = resolve_pod_targets(api_client, &[target.to_string()]).await?;
 
     if pods.is_empty() {
-        return Err(LiumError::NotFound(format!(
+        return Err(CliError::NotFound(format!(
             "No pod found matching: {}",
             target
         )));
     }
 
     if pods.len() > 1 {
-        return Err(LiumError::InvalidInput(format!(
+        return Err(CliError::InvalidInput(format!(
             "Multiple pods found matching '{}'. Please be more specific.",
             target
         )));

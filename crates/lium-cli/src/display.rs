@@ -1,4 +1,4 @@
-use crate::errors::Result;
+use crate::Result;
 use colored::Colorize;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
 use lium_core::{ExecutorInfo, PodInfo, TemplateInfo};
@@ -361,7 +361,7 @@ pub fn prompt_confirm(message: &str, default: bool) -> Result<bool> {
         .with_prompt(message)
         .default(default)
         .interact()
-        .map_err(|e| crate::errors::LiumError::OperationFailed(e.to_string()))?;
+        .map_err(|e| crate::CliError::OperationFailed(e.to_string()))?;
 
     Ok(result)
 }
@@ -374,7 +374,7 @@ pub fn prompt_select<T: ToString>(message: &str, items: &[T]) -> Result<usize> {
         .items(&item_strings)
         .default(0)
         .interact()
-        .map_err(|e| crate::errors::LiumError::OperationFailed(e.to_string()))?;
+        .map_err(|e| crate::CliError::OperationFailed(e.to_string()))?;
 
     Ok(selection)
 }
@@ -389,7 +389,7 @@ pub fn prompt_input(message: &str, default: Option<&str>) -> Result<String> {
 
     let result = input
         .interact_text()
-        .map_err(|e| crate::errors::LiumError::OperationFailed(e.to_string()))?;
+        .map_err(|e| crate::CliError::OperationFailed(e.to_string()))?;
 
     Ok(result)
 }

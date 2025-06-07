@@ -1,26 +1,28 @@
-use crate::config::Config;
-use crate::errors::{LiumError, Result};
-use crate::helpers::{parse_ssh_command, resolve_pod_targets};
-use crate::ssh_utils::execute_remote_command;
+use crate::{
+    config::Config,
+    helpers::{parse_ssh_command, resolve_pod_targets},
+    CliError, Result,
+};
+use lium_utils::execute_remote_command;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
 /// Handle the exec command for remote command execution
-pub async fn handle_exec(
+pub async fn handle(
     pods: Vec<String>,
     command: String,
     script: Option<String>,
     env_vars: Vec<String>,
     config: &Config,
 ) -> Result<()> {
-    let api_client = crate::api::LiumApiClient::from_config()?;
+    let api_client = lium_api::LiumApiClient::from_config(config)?;
 
     // Resolve pod targets
     let resolved_pods = resolve_pod_targets(&api_client, &pods).await?;
 
     if resolved_pods.is_empty() {
-        return Err(crate::errors::LiumError::InvalidInput(
+        return Err(CliError::InvalidInput(
             "No pods found to execute command on".to_string(),
         ));
     }
@@ -31,7 +33,7 @@ pub async fn handle_exec(
         if let Some((key, value)) = env_var.split_once('=') {
             env_map.insert(key.to_string(), value.to_string());
         } else {
-            return Err(crate::errors::LiumError::InvalidInput(format!(
+            return Err(CliError::InvalidInput(format!(
                 "Invalid environment variable format: {}. Use KEY=VALUE",
                 env_var
             )));
@@ -41,7 +43,7 @@ pub async fn handle_exec(
     // Determine the command to execute
     let exec_command = if let Some(script_path) = script {
         // Read script file
-        let script_content = fs::read_to_string(&script_path).map_err(LiumError::Io)?;
+        let script_content = fs::read_to_string(&script_path).map_err(CliError::Io)?;
 
         println!("📄 Executing script: {}", script_path);
         script_content
@@ -70,10 +72,7 @@ pub async fn handle_exec(
 
         // Parse SSH details
         let ssh_cmd = pod.ssh_cmd.as_ref().ok_or_else(|| {
-            crate::errors::LiumError::InvalidInput(format!(
-                "Pod {} has no SSH connection info",
-                pod.huid
-            ))
+            CliError::InvalidInput(format!("Pod {} has no SSH connection info", pod.huid))
         })?;
 
         let (host, port, user) = parse_ssh_command(ssh_cmd)?;
@@ -151,7 +150,7 @@ pub async fn execute_script_on_pods(
     }
 
     let script_path = script_path.ok_or_else(|| {
-        crate::errors::LiumError::InvalidInput(format!(
+        CliError::InvalidInput(format!(
             "Script '{}' not found in any of: {}",
             script_name,
             script_paths.join(", ")
@@ -164,7 +163,7 @@ pub async fn execute_script_on_pods(
         .map(|(k, v)| format!("{}={}", k, v))
         .collect();
 
-    handle_exec(
+    handle(
         pod_targets.to_vec(),
         String::new(), // Empty command since we're using script
         Some(script_path),

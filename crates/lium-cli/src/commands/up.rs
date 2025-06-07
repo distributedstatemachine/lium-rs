@@ -1,14 +1,17 @@
-use crate::api::LiumApiClient;
-use crate::config::Config;
-use crate::display::{
-    display_executors_table, print_error, print_info, print_success, prompt_confirm, prompt_select,
+use crate::{
+    config::Config,
+    display::{
+        display_executors_table, print_error, print_info, print_success, prompt_confirm,
+        prompt_select,
+    },
+    CliError, Result,
 };
-use crate::errors::Result;
-use crate::utils::{
+use clap::Args;
+use lium_api::LiumApiClient;
+use lium_core::{
     filter_by_availability, filter_by_gpu_type, parse_env_vars, parse_executor_index,
     parse_port_mappings, sort_by_price, validate_docker_image,
 };
-use clap::Args;
 use std::collections::HashMap;
 
 #[derive(Args)]
@@ -50,8 +53,8 @@ pub struct UpArgs {
     pub yes: bool,
 }
 
-pub async fn handle_up(args: UpArgs, config: &Config) -> Result<()> {
-    let client = LiumApiClient::from_config()?;
+pub async fn handle(args: UpArgs, config: &Config) -> Result<()> {
+    let client = LiumApiClient::from_config(config)?;
 
     // Get Docker image
     let docker_image = match args.image {
@@ -60,7 +63,7 @@ pub async fn handle_up(args: UpArgs, config: &Config) -> Result<()> {
             image
         }
         None => {
-            return Err(crate::LiumError::InvalidInput(
+            return Err(CliError::InvalidInput(
                 "Docker image is required. Use --image or -i flag.".to_string(),
             ));
         }
@@ -84,9 +87,7 @@ pub async fn handle_up(args: UpArgs, config: &Config) -> Result<()> {
     let mut executors = client.get_executors().await?;
 
     if executors.is_empty() {
-        return Err(crate::LiumError::OperationFailed(
-            "No executors found".to_string(),
-        ));
+        return Err(CliError::OperationFailed("No executors found".to_string()));
     }
 
     // Apply filters
@@ -102,7 +103,7 @@ pub async fn handle_up(args: UpArgs, config: &Config) -> Result<()> {
     }
 
     if executors.is_empty() {
-        return Err(crate::LiumError::OperationFailed(
+        return Err(CliError::OperationFailed(
             "No available executors found matching your criteria".to_string(),
         ));
     }
@@ -222,7 +223,7 @@ pub async fn handle_up(args: UpArgs, config: &Config) -> Result<()> {
         }
         Err(e) => {
             print_error(&format!("Failed to start pod: {}", e));
-            return Err(e);
+            return Err(e.into());
         }
     }
 
