@@ -2,19 +2,19 @@
 
 # 🍄 Lium
 
-**High-Performance GPU Compute Management System**
+**Toolchain for Celium GPU Compute Management**
 
 [![Rust](https://img.shields.io/badge/Rust-1.70+-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Build Status](https://img.shields.io/badge/Build-Passing-green.svg)]()
 
-*Streamlined GPU cluster orchestration and job management*
+*Streamlined toolchain for Celium GPU cluster orchestration and job management*
 
 </div>
 
 ## 🚀 Overview
 
-Lium is a modern, high-performance GPU compute management system built in Rust. It provides seamless orchestration of GPU clusters, efficient job scheduling, and intuitive command-line tools for managing distributed compute workloads.
+Lium is a modern, high-performance toolchain for Celium GPU compute management built in Rust. It provides seamless orchestration of Celium GPU clusters, efficient job scheduling, and intuitive command-line tools for managing distributed compute workloads on the Celium platform.
 
 ### Key Features
 
@@ -28,14 +28,14 @@ Lium is a modern, high-performance GPU compute management system built in Rust. 
 
 ## 🏗️ Architecture
 
-Lium is structured as a modular Rust workspace with four core crates:
+Lium is structured as a modular Rust workspace with four core crates for interacting with Celium:
 
 ```
 🍄 lium-rs/
-├── 🧠 lium-core     # Domain logic and data structures
-├── 🌐 lium-api      # HTTP API client
+├── 🧠 lium-core     # Celium domain logic and data structures
+├── 🌐 lium-api      # Celium HTTP API client
 ├── 🔧 lium-utils    # SSH, Docker & system utilities  
-└── 🎯 lium-cli      # Command-line interface
+└── 🎯 lium-cli      # Command-line interface for Celium
 
 ```
 
@@ -43,10 +43,10 @@ Lium is structured as a modular Rust workspace with four core crates:
 
 | Crate | Purpose | Key Features |
 |-------|---------|--------------|
-| **🧠 lium-core** | Domain logic & types | Pod/job models, business logic, validation |
-| **🌐 lium-api** | HTTP API client | Async REST client, authentication, error handling |
+| **🧠 lium-core** | Celium domain logic & types | Pod/job models, business logic, validation |
+| **🌐 lium-api** | Celium HTTP API client | Async REST client, authentication, error handling |
 | **🔧 lium-utils** | System utilities | SSH operations, Docker integration, process management |
-| **🎯 lium-cli** | CLI interface | Interactive commands, rich output, flexible targeting |
+| **🎯 lium-cli** | CLI interface for Celium | Interactive commands, rich output, flexible targeting |
 
 ## 🚀 Quick Start
 
@@ -87,7 +87,7 @@ lium exec --interactive "python inference.py"
 
 ```bash
 # Set your API endpoint
-lium config set api-url https://your-lium-api.com
+lium config set api-url https://api.celium.dev
 
 # Configure authentication
 lium config set auth-token your-api-token
@@ -167,10 +167,10 @@ cargo build --release
 
 Each crate has detailed documentation:
 
-- [🧠 **lium-core**](crates/lium-core/README.md) - Domain models and business logic
-- [🌐 **lium-api**](crates/lium-api/README.md) - HTTP API client library  
+- [🧠 **lium-core**](crates/lium-core/README.md) - Celium domain models and business logic
+- [🌐 **lium-api**](crates/lium-api/README.md) - Celium HTTP API client library  
 - [🔧 **lium-utils**](crates/lium-utils/README.md) - SSH, Docker, and system utilities
-- [🎯 **lium-cli**](crates/lium-cli/README.md) - Command-line interface
+- [🎯 **lium-cli**](crates/lium-cli/README.md) - Command-line interface for Celium
 
 ## 🤝 Contributing
 
@@ -190,8 +190,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🔗 Links
 
-<!-- - **Documentation**: [docs.lium.dev](https://docs.lium.dev) -->
-<!-- - **API Reference**: [api.lium.dev](https://api.lium.dev) -->
+- **Documentation**: [docs.celium.dev](https://docs.celium.dev)
+- **API Reference**: [api.celium.dev](https://api.celium.dev)
 - **Issues**: [GitHub Issues](https://github.com/your-org/lium-rs/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/your-org/lium-rs/discussions)
 
@@ -201,6 +201,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Built with ❤️ and 🦀 Rust**
 
-*🍄 Lium - Making GPU compute simple and powerful*
+*🍄 Lium - Making Celium GPU compute simple and powerful*
 
 </div> 

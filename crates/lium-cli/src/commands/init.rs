@@ -88,7 +88,7 @@ pub async fn handle() -> Result<()> {
 /// Get API key from user input
 fn get_api_key_from_user() -> Result<String> {
     println!("Please enter your Lium API key.");
-    println!("You can get your API key from: https://lium.ai/dashboard/api-keys");
+    println!("You can get your API key from: https://celium.ai/dashboard/api-keys");
 
     let api_key: String = Password::new()
         .with_prompt("API Key")

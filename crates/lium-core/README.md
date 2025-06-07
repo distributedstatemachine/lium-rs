@@ -2,7 +2,7 @@
 
 # 🍄 Lium Core
 
-**Core domain logic for GPU compute management**
+**Core domain logic for Celium GPU compute management**
 
 [![Rust](https://img.shields.io/badge/Rust-1.70+-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -11,7 +11,7 @@
 
 ## Overview
 
-`lium-core` provides the foundational domain types and business logic for the Lium GPU compute management system. This crate contains:
+`lium-core` provides the foundational domain types and business logic for the Celium GPU compute management system. This crate contains:
 
 - **Domain Models**: Core data structures for pods, executors, jobs, and compute resources
 - **Business Logic**: Validation, state management, and core algorithms

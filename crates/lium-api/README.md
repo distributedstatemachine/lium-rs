@@ -2,7 +2,7 @@
 
 # 🍄 Lium API
 
-**HTTP API client for Lium compute services**
+**HTTP API client for Celium compute services**
 
 [![Rust](https://img.shields.io/badge/Rust-1.70+-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -11,7 +11,7 @@
 
 ## Overview
 
-`lium-api` provides a comprehensive HTTP client for interacting with Lium compute services. This crate handles all API communication including:
+`lium-api` provides a comprehensive HTTP client for interacting with Celium compute services. This crate handles all API communication including:
 
 - **Pod Management**: Create, list, update, and delete compute pods
 - **Executor Operations**: Manage job executors and their lifecycle
@@ -34,7 +34,7 @@ use lium_api::LiumApiClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = LiumApiClient::new("https://api.lium.dev")?;
+    let client = LiumApiClient::new("https://api.celium.dev")?;
     
     // List all available pods
     let pods = client.get_pods().await?;
@@ -54,7 +54,7 @@ The API client supports various configuration options:
 
 ```rust
 let client = LiumApiClient::builder()
-    .base_url("https://api.lium.dev")
+    .base_url("https://api.celium.dev")
     .timeout(Duration::from_secs(30))
     .retry_attempts(3)
     .build()?;
