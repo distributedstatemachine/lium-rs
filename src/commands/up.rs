@@ -3,7 +3,7 @@ use crate::config::Config;
 use crate::display::{
     display_executors_table, print_error, print_info, print_success, prompt_confirm, prompt_select,
 };
-use crate::errors::{LiumError, Result};
+use crate::errors::Result;
 use crate::utils::{
     filter_by_availability, filter_by_gpu_type, parse_env_vars, parse_executor_index,
     parse_port_mappings, sort_by_price, validate_docker_image,
@@ -60,7 +60,7 @@ pub async fn handle_up(args: UpArgs, config: &Config) -> Result<()> {
             image
         }
         None => {
-            return Err(LiumError::InvalidInput(
+            return Err(crate::LiumError::InvalidInput(
                 "Docker image is required. Use --image or -i flag.".to_string(),
             ));
         }
@@ -84,7 +84,9 @@ pub async fn handle_up(args: UpArgs, config: &Config) -> Result<()> {
     let mut executors = client.get_executors().await?;
 
     if executors.is_empty() {
-        return Err(LiumError::OperationFailed("No executors found".to_string()));
+        return Err(crate::LiumError::OperationFailed(
+            "No executors found".to_string(),
+        ));
     }
 
     // Apply filters
@@ -100,7 +102,7 @@ pub async fn handle_up(args: UpArgs, config: &Config) -> Result<()> {
     }
 
     if executors.is_empty() {
-        return Err(LiumError::OperationFailed(
+        return Err(crate::LiumError::OperationFailed(
             "No available executors found matching your criteria".to_string(),
         ));
     }

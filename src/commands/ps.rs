@@ -2,14 +2,14 @@ use crate::api::LiumApiClient;
 use crate::config::Config;
 use crate::display::{display_pod_details, display_pods_table};
 use crate::errors::Result;
-use crate::utils::parse_executor_index;
+use crate::helpers::{resolve_pod_targets, store_pod_selection};
 use clap::Args;
 
 #[derive(Args)]
 pub struct PsArgs {
-    /// Show detailed information for a specific pod (by index)
-    #[arg(short, long)]
-    pub details: Option<String>,
+    /// Show detailed information for specific pods (by HUID, index, or "all")
+    #[arg(value_name = "POD_TARGET")]
+    pub targets: Vec<String>,
 
     /// Show all pods (including stopped)
     #[arg(short, long)]
@@ -27,43 +27,51 @@ pub struct PsArgs {
 pub async fn handle_ps(args: PsArgs, _config: &Config) -> Result<()> {
     let client = LiumApiClient::from_config()?;
 
-    // Fetch pods from API
+    // If specific targets are provided, show details for those pods
+    if !args.targets.is_empty() {
+        let resolved_pods = resolve_pod_targets(&client, &args.targets).await?;
+
+        for (pod, identifier) in resolved_pods {
+            println!("Pod details for {} ({}):", pod.huid, identifier);
+            display_pod_details(&pod);
+            println!();
+        }
+        return Ok(());
+    }
+
+    // Fetch all pods from API for listing
     let mut pods = client.get_pods().await?;
 
     if pods.is_empty() {
-        println!("No pods found.");
+        println!("No pods found. Use 'lium up' to create a pod.");
         return Ok(());
     }
 
     // Apply filters
     if !args.all {
         // Default: show only running and starting pods
-        pods = pods
-            .into_iter()
-            .filter(|pod| pod.status == "running" || pod.status == "starting")
-            .collect();
+        pods.retain(|pod| {
+            matches!(
+                pod.status.to_lowercase().as_str(),
+                "running" | "starting" | "active" | "ready"
+            )
+        });
     }
 
     if let Some(status_filter) = &args.status {
         let status_lower = status_filter.to_lowercase();
-        pods = pods
-            .into_iter()
-            .filter(|pod| pod.status.to_lowercase() == status_lower)
-            .collect();
+        pods.retain(|pod| pod.status.to_lowercase() == status_lower);
     }
 
     if let Some(gpu_filter) = &args.gpu {
         let gpu_upper = gpu_filter.to_uppercase();
-        pods = pods
-            .into_iter()
-            .filter(|pod| {
-                pod.executor
-                    .get("gpu_type")
-                    .and_then(|v| v.as_str())
-                    .map(|gpu| gpu.to_uppercase().contains(&gpu_upper))
-                    .unwrap_or(false)
-            })
-            .collect();
+        pods.retain(|pod| {
+            pod.executor
+                .get("gpu_type")
+                .and_then(|v| v.as_str())
+                .map(|gpu| gpu.to_uppercase().contains(&gpu_upper))
+                .unwrap_or(false)
+        });
     }
 
     if pods.is_empty() {
@@ -71,21 +79,25 @@ pub async fn handle_ps(args: PsArgs, _config: &Config) -> Result<()> {
         return Ok(());
     }
 
-    // Show details for specific pod
-    if let Some(index_str) = &args.details {
-        let index = parse_executor_index(index_str, pods.len())?;
-        let pod = &pods[index];
-        display_pod_details(pod);
-        return Ok(());
-    }
+    // Store pod selection for index-based references in other commands
+    store_pod_selection(&pods)?;
 
     // Display pods table
     display_pods_table(&pods);
 
     // Show summary
-    let running_count = pods.iter().filter(|p| p.status == "running").count();
-    let starting_count = pods.iter().filter(|p| p.status == "starting").count();
-    let stopped_count = pods.iter().filter(|p| p.status == "stopped").count();
+    let running_count = pods
+        .iter()
+        .filter(|p| matches!(p.status.to_lowercase().as_str(), "running" | "active"))
+        .count();
+    let starting_count = pods
+        .iter()
+        .filter(|p| matches!(p.status.to_lowercase().as_str(), "starting" | "creating"))
+        .count();
+    let stopped_count = pods
+        .iter()
+        .filter(|p| matches!(p.status.to_lowercase().as_str(), "stopped" | "terminated"))
+        .count();
 
     println!();
     println!(
@@ -93,10 +105,15 @@ pub async fn handle_ps(args: PsArgs, _config: &Config) -> Result<()> {
         running_count, starting_count, stopped_count
     );
 
-    // Calculate total cost
+    // Calculate total cost for active pods
     let total_cost: f64 = pods
         .iter()
-        .filter(|p| p.status == "running" || p.status == "starting")
+        .filter(|p| {
+            matches!(
+                p.status.to_lowercase().as_str(),
+                "running" | "starting" | "active"
+            )
+        })
         .map(|pod| {
             pod.executor
                 .get("price_per_hour")
@@ -109,15 +126,17 @@ pub async fn handle_ps(args: PsArgs, _config: &Config) -> Result<()> {
         println!("Total hourly cost: ${:.3}/hr", total_cost);
     }
 
+    // Usage hint
+    println!();
+    println!("Use 'lium ps <pod_target>' for detailed info, or 'lium exec <pod_target> <command>' to run commands.");
+
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+    use lium_core::PodInfo;
     use std::collections::HashMap;
-
-    use super::*;
-    use crate::models::PodInfo;
 
     fn create_test_pod(huid: &str, status: &str, gpu_type: &str) -> PodInfo {
         let executor = serde_json::json!({

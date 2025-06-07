@@ -1,7 +1,19 @@
+//! Error types for Lium CLI application
+//!
+//! This module re-exports core domain errors from lium-core and adds
+//! application-specific errors for I/O operations, networking, etc.
+
+// Re-export core domain errors
+pub use lium_core::{LiumError as CoreError, Result as CoreResult};
+
 use thiserror::Error;
 
+/// Application-level errors that wrap core errors and add I/O-specific errors
 #[derive(Error, Debug)]
 pub enum LiumError {
+    #[error("Core domain error: {0}")]
+    Core(#[from] CoreError),
+
     #[error("API error: {0}")]
     Api(#[from] ApiError),
 
@@ -17,11 +29,14 @@ pub enum LiumError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
+    #[error("Request error: {0}")]
+    Request(#[from] reqwest::Error),
+
     #[error("Serialization error: {0}")]
     Serde(#[from] serde_json::Error),
 
-    #[error("Request error: {0}")]
-    Request(#[from] reqwest::Error),
+    #[error("Command failed: {0}")]
+    Command(String),
 
     #[error("Invalid input: {0}")]
     InvalidInput(String),
@@ -31,8 +46,12 @@ pub enum LiumError {
 
     #[error("Operation failed: {0}")]
     OperationFailed(String),
+
+    #[error("Other: {0}")]
+    Other(String),
 }
 
+/// API client errors
 #[derive(Error, Debug)]
 pub enum ApiError {
     #[error("HTTP {status}: {message}")]
@@ -57,6 +76,7 @@ pub enum ApiError {
     InvalidResponse(String),
 }
 
+/// SSH connection errors
 #[derive(Error, Debug)]
 pub enum SshError {
     #[error("Connection failed: {0}")]
@@ -78,6 +98,7 @@ pub enum SshError {
     Ssh2(#[from] ssh2::Error),
 }
 
+/// Configuration errors
 #[derive(Error, Debug)]
 pub enum ConfigError {
     #[error("Config file not found")]
@@ -99,6 +120,7 @@ pub enum ConfigError {
     IniError(String),
 }
 
+/// Docker operation errors
 #[derive(Error, Debug)]
 pub enum DockerError {
     #[error("Docker daemon not running")]
@@ -130,3 +152,9 @@ pub enum DockerError {
 }
 
 pub type Result<T> = std::result::Result<T, LiumError>;
+
+impl From<dialoguer::Error> for LiumError {
+    fn from(err: dialoguer::Error) -> Self {
+        LiumError::Other(format!("Input error: {}", err))
+    }
+}

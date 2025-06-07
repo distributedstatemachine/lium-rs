@@ -125,7 +125,6 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::models::ExecutorInfo;
 
     fn create_test_executor(
         huid: &str,

@@ -1,0 +1,24 @@
+[package]
+name = "lium-core"
+version = "0.1.0"
+edition = "2021"
+description = "Core domain logic for Lium - GPU compute management"
+authors = ["Lium Team"]
+
+[dependencies]
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Date/time
+chrono = { workspace = true }
+
+# Collections and utilities
+uuid = { workspace = true }
+
+[dev-dependencies]
+# For testing
+tokio = { workspace = true } 

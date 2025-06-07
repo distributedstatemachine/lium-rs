@@ -22,25 +22,40 @@ pub enum Commands {
     Up(up::UpArgs),
     /// List active pods
     Ps(ps::PsArgs),
-    /// Execute command in pod
+    /// Execute command in pod(s)
     Exec {
-        /// Pod HUID or index
-        pod: String,
+        /// Pod HUID(s), index(es), or "all"
+        #[arg(value_name = "POD_TARGET")]
+        pods: Vec<String>,
         /// Command to execute
-        #[arg(trailing_var_arg = true)]
+        #[arg(last = true, value_name = "COMMAND")]
         command: Vec<String>,
+        /// Path to script file to upload and execute
+        #[arg(long)]
+        script: Option<std::path::PathBuf>,
+        /// Environment variables (KEY=VALUE format)
+        #[arg(long)]
+        env: Vec<String>,
     },
     /// SSH into pod
     Ssh {
         /// Pod HUID or index
         pod: String,
     },
-    /// Copy files to/from pod
+    /// Copy files to/from pod(s)
     Scp {
-        /// Source path
+        /// Pod HUID(s), index(es), or source path
+        #[arg(value_name = "SOURCE")]
         source: String,
-        /// Destination path
+        /// Destination path or pod targets
+        #[arg(value_name = "DESTINATION")]
         destination: String,
+        /// Copy wallet files (coldkey)
+        #[arg(long)]
+        coldkey: Option<String>,
+        /// Copy wallet files (hotkey)
+        #[arg(long)]
+        hotkey: Option<String>,
     },
     /// Sync files with pod using rsync
     Rsync {
@@ -52,10 +67,14 @@ pub enum Commands {
         #[arg(short, long)]
         options: Option<String>,
     },
-    /// Stop and remove pod
+    /// Stop and remove pod(s)
     Down {
-        /// Pod HUID or index
-        pod: String,
+        /// Pod HUID(s), index(es), or "all"
+        #[arg(value_name = "POD_TARGET")]
+        pods: Vec<String>,
+        /// Stop all pods
+        #[arg(long)]
+        all: bool,
         /// Skip confirmation
         #[arg(short, long)]
         yes: bool,
@@ -158,18 +177,25 @@ pub async fn run_cli() -> Result<()> {
         Commands::Ls(args) => ls::handle_ls(args, &config).await,
         Commands::Up(args) => up::handle_up(args, &config).await,
         Commands::Ps(args) => ps::handle_ps(args, &config).await,
-        Commands::Exec { pod, command } => handle_exec(pod, command, &config).await,
+        Commands::Exec {
+            pods,
+            command,
+            script,
+            env,
+        } => handle_exec(pods, command, script, env, &config).await,
         Commands::Ssh { pod } => handle_ssh(pod, &config).await,
         Commands::Scp {
             source,
             destination,
-        } => handle_scp(source, destination, &config).await,
+            coldkey,
+            hotkey,
+        } => handle_scp(source, destination, coldkey, hotkey, &config).await,
         Commands::Rsync {
             source,
             destination,
             options,
         } => handle_rsync(source, destination, options, &config).await,
-        Commands::Down { pod, yes } => handle_down(pod, yes, &config).await,
+        Commands::Down { pods, all, yes } => handle_down(pods, all, yes, &config).await,
         Commands::Image { action } => handle_image(action, &config).await,
         Commands::Config { action } => handle_config(action).await,
         Commands::Fund { action } => handle_fund(action, &config).await,
@@ -225,49 +251,180 @@ async fn handle_init() -> Result<()> {
     Ok(())
 }
 
-async fn handle_exec(pod: String, command: Vec<String>, config: &Config) -> Result<()> {
+async fn handle_exec(
+    pod_targets: Vec<String>,
+    command: Vec<String>,
+    script_path: Option<std::path::PathBuf>,
+    env_vars: Vec<String>,
+    config: &Config,
+) -> Result<()> {
     use crate::api::LiumApiClient;
-    use crate::display::{print_error, print_info};
-    use crate::helpers::{extract_ssh_details, resolve_single_pod_target};
+    use crate::display::{print_error, print_info, print_warning};
+    use crate::helpers::{extract_ssh_details, resolve_pod_targets};
     use crate::ssh_utils;
+    use std::collections::HashMap;
 
-    if command.is_empty() {
+    // Validate input
+    if pod_targets.is_empty() {
         return Err(crate::errors::LiumError::InvalidInput(
-            "No command specified".to_string(),
+            "No pod targets specified".to_string(),
+        ));
+    }
+
+    if command.is_empty() && script_path.is_none() {
+        return Err(crate::errors::LiumError::InvalidInput(
+            "No command or script specified. Use either command args or --script".to_string(),
+        ));
+    }
+
+    if !command.is_empty() && script_path.is_some() {
+        return Err(crate::errors::LiumError::InvalidInput(
+            "Cannot specify both command and script. Use one or the other.".to_string(),
         ));
     }
 
     let client = LiumApiClient::from_config()?;
 
-    // Resolve the pod
-    let pod_info = resolve_single_pod_target(&client, &pod).await?;
+    // Resolve pod targets
+    let resolved_pods = resolve_pod_targets(&client, &pod_targets).await?;
 
-    print_info(&format!("Executing command on pod: {}", pod_info.huid));
-
-    // Extract SSH connection details
-    let (host, port, user) = extract_ssh_details(&pod_info)?;
-    let private_key_path = config.get_ssh_private_key_path()?;
-
-    // Join command arguments
-    let command_str = command.join(" ");
-
-    // Execute the command
-    let (_stdout, _stderr, exit_code) = ssh_utils::execute_remote_command(
-        &host,
-        port,
-        &user,
-        &private_key_path,
-        &command_str,
-        None, // TODO: Add support for --env flags
-    )
-    .await?;
-
-    if exit_code != 0 {
-        print_error(&format!("Command failed with exit code: {}", exit_code));
+    // Parse environment variables
+    let mut env_map = HashMap::new();
+    for env_var in env_vars {
+        if let Some((key, value)) = env_var.split_once('=') {
+            env_map.insert(key.to_string(), value.to_string());
+        } else {
+            print_warning(&format!(
+                "Invalid environment variable format: {}. Use KEY=VALUE",
+                env_var
+            ));
+        }
     }
 
-    // Note: stdout/stderr are already streamed during execution
-    std::process::exit(exit_code);
+    // Determine command to execute
+    let command_str = if let Some(script_path) = script_path {
+        // Read script file
+        let script_content =
+            std::fs::read_to_string(&script_path).map_err(crate::errors::LiumError::Io)?;
+
+        // Upload script and execute it
+        format!("cat > /tmp/lium_script.sh << 'EOF'\n{}\nEOF\nchmod +x /tmp/lium_script.sh\n/tmp/lium_script.sh", script_content)
+    } else {
+        command.join(" ")
+    };
+
+    print_info(&format!("Executing on {} pod(s):", resolved_pods.len()));
+
+    let private_key_path = config.get_ssh_private_key_path()?;
+    let mut failed_pods = Vec::new();
+    let mut success_count = 0;
+
+    // Execute on all pods (concurrently if multiple)
+    if resolved_pods.len() == 1 {
+        // Single pod - stream output directly
+        let (pod, identifier) = &resolved_pods[0];
+        print_info(&format!("Pod: {} ({})", pod.huid, identifier));
+
+        let (host, port, user) = extract_ssh_details(pod)?;
+        let result = ssh_utils::execute_remote_command(
+            &host,
+            port,
+            &user,
+            &private_key_path,
+            &command_str,
+            if env_map.is_empty() {
+                None
+            } else {
+                Some(env_map)
+            },
+        )
+        .await;
+
+        match result {
+            Ok((_stdout, _stderr, exit_code)) => {
+                if exit_code != 0 {
+                    print_error(&format!("Command failed with exit code: {}", exit_code));
+                    std::process::exit(exit_code);
+                }
+                success_count += 1;
+            }
+            Err(e) => {
+                print_error(&format!("Failed to execute on {}: {}", pod.huid, e));
+                failed_pods.push(pod.huid.clone());
+            }
+        }
+    } else {
+        // Multiple pods - execute concurrently and collect results
+        use futures::future::join_all;
+
+        let futures = resolved_pods.iter().map(|(pod, identifier)| async {
+            let (host, port, user) = match extract_ssh_details(pod) {
+                Ok(details) => details,
+                Err(e) => return (pod.huid.clone(), identifier.clone(), Err(e)),
+            };
+
+            let result = ssh_utils::execute_remote_command(
+                &host,
+                port,
+                &user,
+                &private_key_path,
+                &command_str,
+                if env_map.is_empty() {
+                    None
+                } else {
+                    Some(env_map.clone())
+                },
+            )
+            .await;
+
+            (pod.huid.clone(), identifier.clone(), result)
+        });
+
+        let results = join_all(futures).await;
+
+        for (huid, identifier, result) in results {
+            match result {
+                Ok((stdout, stderr, exit_code)) => {
+                    println!("=== {} ({}) ===", huid, identifier);
+                    if !stdout.is_empty() {
+                        println!("{}", stdout);
+                    }
+                    if !stderr.is_empty() {
+                        eprintln!("{}", stderr);
+                    }
+                    if exit_code == 0 {
+                        success_count += 1;
+                    } else {
+                        print_error(&format!("Exit code: {}", exit_code));
+                        failed_pods.push(huid);
+                    }
+                    println!();
+                }
+                Err(e) => {
+                    print_error(&format!("Failed to execute on {}: {}", huid, e));
+                    failed_pods.push(huid);
+                }
+            }
+        }
+    }
+
+    // Summary
+    if failed_pods.is_empty() {
+        print_info(&format!(
+            "Command executed successfully on {} pod(s)",
+            success_count
+        ));
+    } else {
+        print_error(&format!(
+            "Command failed on {} pod(s): {}. Succeeded on {} pod(s).",
+            failed_pods.len(),
+            failed_pods.join(", "),
+            success_count
+        ));
+        std::process::exit(1);
+    }
+
+    Ok(())
 }
 
 async fn handle_ssh(pod: String, config: &Config) -> Result<()> {
@@ -293,13 +450,25 @@ async fn handle_ssh(pod: String, config: &Config) -> Result<()> {
     Ok(())
 }
 
-async fn handle_scp(source: String, destination: String, config: &Config) -> Result<()> {
+async fn handle_scp(
+    source: String,
+    destination: String,
+    coldkey: Option<String>,
+    hotkey: Option<String>,
+    _config: &Config,
+) -> Result<()> {
     use crate::api::LiumApiClient;
     use crate::display::print_info;
     use crate::helpers::{extract_ssh_details, resolve_single_pod_target};
     use crate::ssh_utils;
+    use std::path::Path;
 
     let client = LiumApiClient::from_config()?;
+
+    // Handle wallet file copying if specified
+    if coldkey.is_some() || hotkey.is_some() {
+        return handle_wallet_copy(source, coldkey, hotkey, &client, _config).await;
+    }
 
     // Parse source and destination to determine if it's upload or download
     let (pod_target, local_path, remote_path, is_upload) = if source.contains(':') {
@@ -348,7 +517,28 @@ async fn handle_scp(source: String, destination: String, config: &Config) -> Res
 
     // Extract SSH connection details
     let (host, port, user) = extract_ssh_details(&pod_info)?;
-    let private_key_path = config.get_ssh_private_key_path()?;
+    let private_key_path = _config.get_ssh_private_key_path()?;
+
+    // Ensure remote directory exists if uploading
+    if is_upload {
+        let remote_dir = Path::new(&remote_path).parent();
+        if let Some(dir) = remote_dir {
+            let dir_str = dir.to_string_lossy();
+            if !dir_str.is_empty() && dir_str != "/" {
+                print_info(&format!("Creating remote directory: {}", dir_str));
+                let mkdir_cmd = format!("mkdir -p '{}'", dir_str);
+                let _ = ssh_utils::execute_remote_command(
+                    &host,
+                    port,
+                    &user,
+                    &private_key_path,
+                    &mkdir_cmd,
+                    None,
+                )
+                .await;
+            }
+        }
+    }
 
     // Execute SCP
     ssh_utils::execute_scp_command(
@@ -360,6 +550,180 @@ async fn handle_scp(source: String, destination: String, config: &Config) -> Res
         &remote_path,
         is_upload,
     )?;
+
+    Ok(())
+}
+
+/// Handle wallet file copying to multiple pods
+async fn handle_wallet_copy(
+    pod_targets: String,
+    coldkey: Option<String>,
+    hotkey: Option<String>,
+    client: &crate::api::LiumApiClient,
+    _config: &Config,
+) -> Result<()> {
+    use crate::display::{print_error, print_info, print_success};
+    use crate::helpers::{extract_ssh_details, resolve_pod_targets};
+    use crate::ssh_utils;
+    use std::path::PathBuf;
+
+    // Parse pod targets
+    let targets: Vec<String> = pod_targets
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
+    let resolved_pods = resolve_pod_targets(client, &targets).await?;
+
+    if resolved_pods.is_empty() {
+        return Err(crate::errors::LiumError::InvalidInput(
+            "No valid pod targets found".to_string(),
+        ));
+    }
+
+    // Determine wallet file paths
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
+    let mut files_to_copy = Vec::new();
+
+    if let Some(coldkey_name) = coldkey {
+        let coldkey_path = PathBuf::from(&home_dir)
+            .join(".bittensor")
+            .join("wallets")
+            .join(&coldkey_name)
+            .join("coldkey");
+        files_to_copy.push((
+            coldkey_path,
+            format!(".bittensor/wallets/{}/coldkey", coldkey_name),
+        ));
+    }
+
+    if let Some(hotkey_name) = hotkey {
+        let hotkey_path = PathBuf::from(&home_dir)
+            .join(".bittensor")
+            .join("wallets")
+            .join("default")
+            .join("hotkeys")
+            .join(&hotkey_name);
+        files_to_copy.push((
+            hotkey_path,
+            format!(".bittensor/wallets/default/hotkeys/{}", hotkey_name),
+        ));
+    }
+
+    if files_to_copy.is_empty() {
+        return Err(crate::errors::LiumError::InvalidInput(
+            "No wallet files specified. Use --coldkey or --hotkey".to_string(),
+        ));
+    }
+
+    // Verify local files exist
+    for (local_path, _) in &files_to_copy {
+        if !local_path.exists() {
+            return Err(crate::errors::LiumError::InvalidInput(format!(
+                "Wallet file not found: {}",
+                local_path.display()
+            )));
+        }
+    }
+
+    let private_key_path = _config.get_ssh_private_key_path()?;
+    let mut failed_pods = Vec::new();
+    let mut success_count = 0;
+
+    print_info(&format!(
+        "Copying wallet files to {} pod(s):",
+        resolved_pods.len()
+    ));
+
+    // Copy to each pod
+    for (pod, identifier) in resolved_pods {
+        print_info(&format!("Copying to pod {} ({})...", pod.huid, identifier));
+
+        let (host, port, user) = match extract_ssh_details(&pod) {
+            Ok(details) => details,
+            Err(e) => {
+                print_error(&format!(
+                    "Failed to get SSH details for {}: {}",
+                    pod.huid, e
+                ));
+                failed_pods.push(pod.huid);
+                continue;
+            }
+        };
+
+        let mut pod_success = true;
+
+        // Create .bittensor directory structure
+        let mkdir_cmd = "mkdir -p ~/.bittensor/wallets/default/hotkeys";
+        if let Err(e) = ssh_utils::execute_remote_command(
+            &host,
+            port,
+            &user,
+            &private_key_path,
+            mkdir_cmd,
+            None,
+        )
+        .await
+        {
+            print_error(&format!(
+                "Failed to create wallet directory on {}: {}",
+                pod.huid, e
+            ));
+            failed_pods.push(pod.huid);
+            continue;
+        }
+
+        // Copy each file
+        for (local_path, remote_rel_path) in &files_to_copy {
+            let remote_path = format!("~/{}", remote_rel_path);
+
+            match ssh_utils::execute_scp_command(
+                &host,
+                port,
+                &user,
+                &private_key_path,
+                &local_path.to_string_lossy(),
+                &remote_path,
+                true,
+            ) {
+                Ok(_) => {
+                    print_info(&format!(
+                        "  ✓ Copied {}",
+                        local_path.file_name().unwrap().to_string_lossy()
+                    ));
+                }
+                Err(e) => {
+                    print_error(&format!(
+                        "  ✗ Failed to copy {}: {}",
+                        local_path.file_name().unwrap().to_string_lossy(),
+                        e
+                    ));
+                    pod_success = false;
+                }
+            }
+        }
+
+        if pod_success {
+            print_success(&format!("Successfully copied wallet files to {}", pod.huid));
+            success_count += 1;
+        } else {
+            failed_pods.push(pod.huid);
+        }
+    }
+
+    // Summary
+    if failed_pods.is_empty() {
+        print_success(&format!(
+            "Successfully copied wallet files to {} pod(s)",
+            success_count
+        ));
+    } else {
+        print_error(&format!(
+            "Failed to copy to {} pod(s): {}. Succeeded on {} pod(s).",
+            failed_pods.len(),
+            failed_pods.join(", "),
+            success_count
+        ));
+    }
 
     Ok(())
 }
@@ -436,24 +800,51 @@ async fn handle_rsync(
     Ok(())
 }
 
-async fn handle_down(pod: String, yes: bool, _config: &Config) -> Result<()> {
+async fn handle_down(
+    pod_targets: Vec<String>,
+    all: bool,
+    yes: bool,
+    _config: &Config,
+) -> Result<()> {
     use crate::api::LiumApiClient;
-    use crate::display::{print_info, print_success, prompt_confirm};
-    use crate::helpers::resolve_single_pod_target;
+    use crate::display::{print_error, print_info, print_success, print_warning, prompt_confirm};
+    use crate::helpers::{get_executor_id_from_pod, resolve_pod_targets};
 
     let client = LiumApiClient::from_config()?;
 
-    // Resolve the pod
-    let pod_info = resolve_single_pod_target(&client, &pod).await?;
+    let resolved_pods = if all {
+        // Get all pods
+        let all_pods = client.get_pods().await?;
+        all_pods
+            .into_iter()
+            .map(|pod| (pod, "all".to_string()))
+            .collect()
+    } else if pod_targets.is_empty() {
+        return Err(crate::errors::LiumError::InvalidInput(
+            "No pod targets specified. Use pod identifiers or --all".to_string(),
+        ));
+    } else {
+        resolve_pod_targets(&client, &pod_targets).await?
+    };
 
-    print_info(&format!(
-        "Stopping pod: {} ({})",
-        pod_info.huid, pod_info.name
-    ));
+    if resolved_pods.is_empty() {
+        print_info("No pods found to stop.");
+        return Ok(());
+    }
 
+    // Show what will be stopped
+    println!("Pods to be stopped:");
+    for (pod, identifier) in &resolved_pods {
+        println!("  {} ({}) - Status: {}", pod.huid, identifier, pod.status);
+    }
+
+    // Confirm unless -y flag
     if !yes {
         let confirm = prompt_confirm(
-            &format!("Are you sure you want to stop pod '{}'?", pod_info.huid),
+            &format!(
+                "Are you sure you want to stop {} pod(s)?",
+                resolved_pods.len()
+            ),
             false,
         )?;
 
@@ -463,23 +854,44 @@ async fn handle_down(pod: String, yes: bool, _config: &Config) -> Result<()> {
         }
     }
 
-    // Get executor ID from pod info
-    let executor_id = pod_info
-        .executor
-        .get("id")
-        .and_then(|v| v.as_str())
-        .unwrap_or(&pod_info.id); // Fallback to pod ID if executor ID not found
+    // Stop each pod
+    let mut failed_pods = Vec::new();
+    let mut success_count = 0;
 
-    match client.unrent_pod(executor_id).await {
-        Ok(_) => {
-            print_success(&format!("Successfully stopped pod: {}", pod_info.huid));
+    for (pod, identifier) in resolved_pods {
+        print_info(&format!("Stopping pod {} ({})...", pod.huid, identifier));
+
+        match get_executor_id_from_pod(&pod) {
+            Ok(executor_id) => match client.unrent_pod(&executor_id).await {
+                Ok(_) => {
+                    print_success(&format!("Successfully stopped pod {}", pod.huid));
+                    success_count += 1;
+                }
+                Err(e) => {
+                    print_error(&format!("Failed to stop pod {}: {}", pod.huid, e));
+                    failed_pods.push(pod.huid);
+                }
+            },
+            Err(e) => {
+                print_error(&format!(
+                    "Could not determine executor for pod {}: {}",
+                    pod.huid, e
+                ));
+                failed_pods.push(pod.huid);
+            }
         }
-        Err(e) => {
-            return Err(crate::errors::LiumError::OperationFailed(format!(
-                "Failed to stop pod: {}",
-                e
-            )));
-        }
+    }
+
+    // Summary
+    if failed_pods.is_empty() {
+        print_success(&format!("Successfully stopped {} pod(s)", success_count));
+    } else {
+        print_warning(&format!(
+            "Stopped {} pod(s), failed to stop {} pod(s): {}",
+            success_count,
+            failed_pods.len(),
+            failed_pods.join(", ")
+        ));
     }
 
     Ok(())
@@ -725,8 +1137,7 @@ async fn handle_config(_action: ConfigCommands) -> Result<()> {
                 let config_file = config_dir.join("config.ini");
 
                 if config_file.exists() {
-                    std::fs::remove_file(config_file)
-                        .map_err(|e| crate::errors::LiumError::Io(e))?;
+                    std::fs::remove_file(config_file).map_err(crate::errors::LiumError::Io)?;
                     print_success("Configuration reset to defaults");
                 } else {
                     print_info("Configuration was already at defaults");

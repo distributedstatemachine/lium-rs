@@ -2,6 +2,30 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// Simple utility functions for core crate (no external dependencies)
+fn extract_gpu_model_simple(machine_name: &str) -> String {
+    // Very basic GPU model extraction - the full version is in lium-utils
+    if machine_name.to_lowercase().contains("rtx") {
+        "RTX".to_string()
+    } else if machine_name.to_lowercase().contains("gtx") {
+        "GTX".to_string()
+    } else if machine_name.to_lowercase().contains("tesla") {
+        "Tesla".to_string()
+    } else if machine_name.to_lowercase().contains("h100") {
+        "H100".to_string()
+    } else if machine_name.to_lowercase().contains("a100") {
+        "A100".to_string()
+    } else {
+        "Unknown".to_string()
+    }
+}
+
+fn generate_human_id_simple(uuid: &str) -> String {
+    // Very basic human ID generation - the full version is in lium-utils
+    let hash = uuid.chars().take(8).collect::<String>();
+    format!("exec-{}", hash)
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ExecutorInfo {
     pub id: String,
@@ -89,8 +113,8 @@ pub struct ApiTemplateResponse {
 // Utility functions for conversions
 impl From<ApiExecutorResponse> for ExecutorInfo {
     fn from(api_response: ApiExecutorResponse) -> Self {
-        let gpu_type = crate::helpers::extract_gpu_model(&api_response.machine_name);
-        let huid = crate::helpers::generate_human_id(&api_response.id);
+        let gpu_type = extract_gpu_model_simple(&api_response.machine_name);
+        let huid = generate_human_id_simple(&api_response.id);
         let price_per_gpu_hour = if api_response.gpu_count > 0 {
             api_response.price_per_hour / api_response.gpu_count as f64
         } else {
@@ -119,7 +143,7 @@ impl From<ApiExecutorResponse> for ExecutorInfo {
 
 impl From<ApiPodResponse> for PodInfo {
     fn from(api_response: ApiPodResponse) -> Self {
-        let huid = crate::helpers::generate_human_id(&api_response.id);
+        let huid = generate_human_id_simple(&api_response.id);
 
         // Try to parse dates
         let created_at = chrono::DateTime::parse_from_rfc3339(&api_response.created_at)

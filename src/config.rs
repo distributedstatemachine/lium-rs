@@ -146,7 +146,7 @@ impl Config {
             return Err(ConfigError::NotFound.into());
         }
 
-        let content = fs::read_to_string(&expanded_path).map_err(|e| LiumError::Io(e))?;
+        let content = fs::read_to_string(&expanded_path).map_err(LiumError::Io)?;
 
         let keys: Vec<String> = content
             .lines()
@@ -230,10 +230,10 @@ fn expand_path(path: &str) -> Result<PathBuf> {
 
 /// Migrate from old JSON config to INI format
 fn migrate_from_json(json_path: &Path, ini_path: &Path) -> Result<()> {
-    let json_content = fs::read_to_string(json_path).map_err(|e| LiumError::Io(e))?;
+    let json_content = fs::read_to_string(json_path).map_err(LiumError::Io)?;
 
     let json_data: serde_json::Value =
-        serde_json::from_str(&json_content).map_err(|e| LiumError::Serde(e))?;
+        serde_json::from_str(&json_content).map_err(LiumError::Serde)?;
 
     let mut ini = ini::Ini::new();
 
@@ -276,7 +276,7 @@ fn migrate_from_json(json_path: &Path, ini_path: &Path) -> Result<()> {
 
     // Backup old JSON file
     let backup_path = json_path.with_extension("json.backup");
-    fs::rename(json_path, backup_path).map_err(|e| LiumError::Io(e))?;
+    fs::rename(json_path, backup_path).map_err(LiumError::Io)?;
 
     Ok(())
 }

@@ -1,5 +1,5 @@
 use crate::errors::{LiumError, Result};
-use crate::models::ExecutorInfo;
+use lium_core::ExecutorInfo;
 use std::collections::HashMap;
 use std::path::Path;
 use std::process::Command;
@@ -107,7 +107,7 @@ pub fn group_by_gpu_type(executors: &[ExecutorInfo]) -> HashMap<String, Vec<Exec
     for executor in executors {
         groups
             .entry(executor.gpu_type.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(executor.clone());
     }
 
@@ -325,6 +325,85 @@ pub fn parse_port_mappings(ports_str: &str) -> Result<HashMap<String, String>> {
     }
 
     Ok(port_mappings)
+}
+
+/// Synchronize directory with remote pod using rsync
+pub async fn rsync_directory(
+    local_path: &Path,
+    remote_path: &str,
+    host: &str,
+    port: u16,
+    user: &str,
+    private_key_path: &Path,
+    direction: crate::sdk::RSyncDirection,
+    delete: bool,
+    exclude: Option<Vec<String>>,
+) -> Result<()> {
+    use std::process::Command;
+
+    // Validate that rsync is available
+    if !command_exists("rsync") {
+        return Err(LiumError::Command(
+            "rsync command not found. Please install rsync.".to_string(),
+        ));
+    }
+
+    let mut rsync_cmd = Command::new("rsync");
+
+    // Common rsync options
+    rsync_cmd.args([
+        "-avz", // Archive mode, verbose, compress
+        "-e",
+        &format!(
+            "ssh -i {} -p {} -o StrictHostKeyChecking=no",
+            private_key_path.display(),
+            port
+        ),
+    ]);
+
+    // Add delete option if requested
+    if delete {
+        rsync_cmd.arg("--delete");
+    }
+
+    // Add exclude patterns
+    if let Some(excludes) = exclude {
+        for pattern in excludes {
+            rsync_cmd.args(["--exclude", &pattern]);
+        }
+    }
+
+    // Set source and destination based on direction
+    let (source, destination) = match direction {
+        crate::sdk::RSyncDirection::Upload => {
+            let source = if local_path.is_dir() {
+                format!("{}/", local_path.display())
+            } else {
+                local_path.display().to_string()
+            };
+            let destination = format!("{}@{}:{}", user, host, remote_path);
+            (source, destination)
+        }
+        crate::sdk::RSyncDirection::Download => {
+            let source = format!("{}@{}:{}", user, host, remote_path);
+            let destination = local_path.display().to_string();
+            (source, destination)
+        }
+    };
+
+    rsync_cmd.args([&source, &destination]);
+
+    // Execute rsync
+    let output = rsync_cmd
+        .output()
+        .map_err(|e| LiumError::Command(format!("Failed to execute rsync: {}", e)))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(LiumError::Command(format!("Rsync failed: {}", stderr)));
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

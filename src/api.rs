@@ -1,5 +1,5 @@
 use crate::errors::{ApiError, LiumError, Result};
-use crate::models::{
+use lium_core::{
     ApiExecutorResponse, ApiPodResponse, ApiTemplateResponse, ExecutorInfo, PodInfo, TemplateInfo,
 };
 use reqwest::{Client, Response, StatusCode};
@@ -51,7 +51,7 @@ impl LiumApiClient {
             .header("Content-Type", "application/json")
             .send()
             .await
-            .map_err(|e| LiumError::Request(e))?;
+            .map_err(LiumError::Request)?;
 
         self.handle_response(response).await
     }
@@ -74,7 +74,7 @@ impl LiumApiClient {
             request = request.json(&body);
         }
 
-        let response = request.send().await.map_err(|e| LiumError::Request(e))?;
+        let response = request.send().await.map_err(LiumError::Request)?;
 
         self.handle_response(response).await
     }
@@ -94,7 +94,7 @@ impl LiumApiClient {
             .header("Content-Type", "application/json")
             .send()
             .await
-            .map_err(|e| LiumError::Request(e))?;
+            .map_err(LiumError::Request)?;
 
         self.handle_response(response).await
     }
@@ -131,7 +131,7 @@ impl LiumApiClient {
     pub async fn get_executors(&self) -> Result<Vec<ExecutorInfo>> {
         let response = self.get("executors").await?;
         let raw_executors: Vec<ApiExecutorResponse> =
-            response.json().await.map_err(|e| LiumError::Request(e))?;
+            response.json().await.map_err(LiumError::Request)?;
 
         // Convert to ExecutorInfo with derived fields
         let executors = raw_executors.into_iter().map(|raw| raw.into()).collect();
@@ -142,8 +142,7 @@ impl LiumApiClient {
     /// Get list of active pods
     pub async fn get_pods(&self) -> Result<Vec<PodInfo>> {
         let response = self.get("pods").await?;
-        let raw_pods: Vec<ApiPodResponse> =
-            response.json().await.map_err(|e| LiumError::Request(e))?;
+        let raw_pods: Vec<ApiPodResponse> = response.json().await.map_err(LiumError::Request)?;
 
         // Convert to PodInfo with derived fields
         let pods = raw_pods.into_iter().map(|raw| raw.into()).collect();
@@ -167,7 +166,7 @@ impl LiumApiClient {
         });
 
         let response = self.post("pods", Some(body)).await?;
-        let result: Value = response.json().await.map_err(|e| LiumError::Request(e))?;
+        let result: Value = response.json().await.map_err(LiumError::Request)?;
 
         Ok(result)
     }
@@ -176,7 +175,7 @@ impl LiumApiClient {
     pub async fn unrent_pod(&self, executor_id: &str) -> Result<Value> {
         let endpoint = format!("pods/{}", executor_id);
         let response = self.delete(&endpoint).await?;
-        let result: Value = response.json().await.map_err(|e| LiumError::Request(e))?;
+        let result: Value = response.json().await.map_err(LiumError::Request)?;
 
         Ok(result)
     }
@@ -185,7 +184,7 @@ impl LiumApiClient {
     pub async fn get_templates(&self) -> Result<Vec<TemplateInfo>> {
         let response = self.get("templates").await?;
         let raw_templates: Vec<ApiTemplateResponse> =
-            response.json().await.map_err(|e| LiumError::Request(e))?;
+            response.json().await.map_err(LiumError::Request)?;
 
         let templates = raw_templates.into_iter().map(|raw| raw.into()).collect();
 
@@ -201,7 +200,7 @@ impl LiumApiClient {
         });
 
         let response = self.post("images", Some(body)).await?;
-        let result: Value = response.json().await.map_err(|e| LiumError::Request(e))?;
+        let result: Value = response.json().await.map_err(LiumError::Request)?;
 
         Ok(result)
     }
@@ -209,7 +208,7 @@ impl LiumApiClient {
     /// Get funding wallets
     pub async fn get_funding_wallets(&self) -> Result<Value> {
         let response = self.get("funding/wallets").await?;
-        let result: Value = response.json().await.map_err(|e| LiumError::Request(e))?;
+        let result: Value = response.json().await.map_err(LiumError::Request)?;
 
         Ok(result)
     }
@@ -217,7 +216,7 @@ impl LiumApiClient {
     /// Get user information
     pub async fn get_users_me(&self) -> Result<Value> {
         let response = self.get("users/me").await?;
-        let result: Value = response.json().await.map_err(|e| LiumError::Request(e))?;
+        let result: Value = response.json().await.map_err(LiumError::Request)?;
 
         Ok(result)
     }
@@ -262,7 +261,7 @@ impl LiumApiClient {
         });
 
         let response = self.post("funding/wallets", Some(body)).await?;
-        let result: Value = response.json().await.map_err(|e| LiumError::Request(e))?;
+        let result: Value = response.json().await.map_err(LiumError::Request)?;
 
         Ok(result)
     }

@@ -1,7 +1,7 @@
 use crate::errors::Result;
-use crate::models::{ExecutorInfo, PodInfo, TemplateInfo};
 use colored::Colorize;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
+use lium_core::{ExecutorInfo, PodInfo, TemplateInfo};
 use std::collections::HashMap;
 
 /// Table formatting utilities
@@ -116,7 +116,7 @@ pub fn display_executors_table(executors: &[ExecutorInfo], show_pareto: bool) {
             .location
             .get("region")
             .or_else(|| executor.location.get("country"))
-            .map(|s| s.clone())
+            .cloned()
             .unwrap_or_else(|| "Unknown".to_string());
 
         // Status with color
