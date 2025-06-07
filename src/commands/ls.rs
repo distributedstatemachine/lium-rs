@@ -131,8 +131,8 @@ mod tests {
         gpu_type: &str,
         price: f64,
         available: bool,
-    ) -> ExecutorInfo {
-        ExecutorInfo {
+    ) -> lium_api::ExecutorInfo {
+        lium_api::ExecutorInfo {
             id: format!("exec_{}", huid),
             huid: huid.to_string(),
             machine_name: format!("machine-{}-{}", gpu_type.to_lowercase(), huid),

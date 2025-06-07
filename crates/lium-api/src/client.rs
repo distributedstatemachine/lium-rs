@@ -1,4 +1,4 @@
-use crate::errors::{ApiError, LiumError, Result};
+use crate::errors::{ApiError, HttpError, Result};
 use lium_core::{
     ApiExecutorResponse, ApiPodResponse, ApiTemplateResponse, ExecutorInfo, PodInfo, TemplateInfo,
 };
@@ -26,11 +26,12 @@ impl LiumApiClient {
         }
     }
 
-    /// Create API client from config
-    pub fn from_config() -> Result<Self> {
-        let config = crate::config::load_config()?;
-        let api_key = config.get_api_key()?.ok_or_else(|| {
-            LiumError::InvalidInput("API key not found. Run 'lium init' to configure.".to_string())
+    /// Create API client from environment variable
+    pub fn from_env() -> Result<Self> {
+        let api_key = std::env::var("LIUM_API_KEY").map_err(|_| {
+            ApiError::Http(HttpError::Config(
+                "LIUM_API_KEY environment variable not set".to_string(),
+            ))
         })?;
 
         Ok(Self::new(api_key, None))
@@ -51,7 +52,7 @@ impl LiumApiClient {
             .header("Content-Type", "application/json")
             .send()
             .await
-            .map_err(LiumError::Request)?;
+            .map_err(HttpError::Request)?;
 
         self.handle_response(response).await
     }
@@ -74,7 +75,7 @@ impl LiumApiClient {
             request = request.json(&body);
         }
 
-        let response = request.send().await.map_err(LiumError::Request)?;
+        let response = request.send().await.map_err(HttpError::Request)?;
 
         self.handle_response(response).await
     }
@@ -94,7 +95,7 @@ impl LiumApiClient {
             .header("Content-Type", "application/json")
             .send()
             .await
-            .map_err(LiumError::Request)?;
+            .map_err(HttpError::Request)?;
 
         self.handle_response(response).await
     }
@@ -112,18 +113,18 @@ impl LiumApiClient {
                 .unwrap_or_else(|_| "Unknown error".to_string());
 
             let api_error = match status {
-                StatusCode::UNAUTHORIZED => ApiError::AuthenticationFailed,
-                StatusCode::FORBIDDEN => ApiError::InvalidApiKey,
-                StatusCode::TOO_MANY_REQUESTS => ApiError::RateLimited,
-                StatusCode::SERVICE_UNAVAILABLE => ApiError::ServiceUnavailable,
-                StatusCode::REQUEST_TIMEOUT => ApiError::Timeout,
-                _ => ApiError::HttpError {
+                StatusCode::UNAUTHORIZED => HttpError::AuthenticationFailed,
+                StatusCode::FORBIDDEN => HttpError::InvalidApiKey,
+                StatusCode::TOO_MANY_REQUESTS => HttpError::RateLimited,
+                StatusCode::SERVICE_UNAVAILABLE => HttpError::ServiceUnavailable,
+                StatusCode::REQUEST_TIMEOUT => HttpError::Timeout,
+                _ => HttpError::HttpError {
                     status: status.as_u16(),
                     message: error_text,
                 },
             };
 
-            Err(LiumError::Api(api_error))
+            Err(ApiError::Http(api_error))
         }
     }
 
@@ -131,7 +132,7 @@ impl LiumApiClient {
     pub async fn get_executors(&self) -> Result<Vec<ExecutorInfo>> {
         let response = self.get("executors").await?;
         let raw_executors: Vec<ApiExecutorResponse> =
-            response.json().await.map_err(LiumError::Request)?;
+            response.json().await.map_err(HttpError::Request)?;
 
         // Convert to ExecutorInfo with derived fields
         let executors = raw_executors.into_iter().map(|raw| raw.into()).collect();
@@ -142,7 +143,7 @@ impl LiumApiClient {
     /// Get list of active pods
     pub async fn get_pods(&self) -> Result<Vec<PodInfo>> {
         let response = self.get("pods").await?;
-        let raw_pods: Vec<ApiPodResponse> = response.json().await.map_err(LiumError::Request)?;
+        let raw_pods: Vec<ApiPodResponse> = response.json().await.map_err(HttpError::Request)?;
 
         // Convert to PodInfo with derived fields
         let pods = raw_pods.into_iter().map(|raw| raw.into()).collect();
@@ -166,7 +167,7 @@ impl LiumApiClient {
         });
 
         let response = self.post("pods", Some(body)).await?;
-        let result: Value = response.json().await.map_err(LiumError::Request)?;
+        let result: Value = response.json().await.map_err(HttpError::Request)?;
 
         Ok(result)
     }
@@ -175,7 +176,7 @@ impl LiumApiClient {
     pub async fn unrent_pod(&self, executor_id: &str) -> Result<Value> {
         let endpoint = format!("pods/{}", executor_id);
         let response = self.delete(&endpoint).await?;
-        let result: Value = response.json().await.map_err(LiumError::Request)?;
+        let result: Value = response.json().await.map_err(HttpError::Request)?;
 
         Ok(result)
     }
@@ -184,7 +185,7 @@ impl LiumApiClient {
     pub async fn get_templates(&self) -> Result<Vec<TemplateInfo>> {
         let response = self.get("templates").await?;
         let raw_templates: Vec<ApiTemplateResponse> =
-            response.json().await.map_err(LiumError::Request)?;
+            response.json().await.map_err(HttpError::Request)?;
 
         let templates = raw_templates.into_iter().map(|raw| raw.into()).collect();
 
@@ -200,7 +201,7 @@ impl LiumApiClient {
         });
 
         let response = self.post("images", Some(body)).await?;
-        let result: Value = response.json().await.map_err(LiumError::Request)?;
+        let result: Value = response.json().await.map_err(HttpError::Request)?;
 
         Ok(result)
     }
@@ -208,7 +209,7 @@ impl LiumApiClient {
     /// Get funding wallets
     pub async fn get_funding_wallets(&self) -> Result<Value> {
         let response = self.get("funding/wallets").await?;
-        let result: Value = response.json().await.map_err(LiumError::Request)?;
+        let result: Value = response.json().await.map_err(HttpError::Request)?;
 
         Ok(result)
     }
@@ -216,7 +217,7 @@ impl LiumApiClient {
     /// Get user information
     pub async fn get_users_me(&self) -> Result<Value> {
         let response = self.get("users/me").await?;
-        let result: Value = response.json().await.map_err(LiumError::Request)?;
+        let result: Value = response.json().await.map_err(HttpError::Request)?;
 
         Ok(result)
     }
@@ -227,9 +228,7 @@ impl LiumApiClient {
         let access_key = user_info
             .get("access_key")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                LiumError::InvalidInput("Access key not found in user info".to_string())
-            })?;
+            .ok_or_else(|| HttpError::Config("Access key not found in user info".to_string()))?;
 
         Ok(access_key.to_string())
     }
@@ -240,7 +239,7 @@ impl LiumApiClient {
         let app_id = user_info
             .get("app_id")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| LiumError::InvalidInput("App ID not found in user info".to_string()))?;
+            .ok_or_else(|| HttpError::Config("App ID not found in user info".to_string()))?;
 
         Ok(app_id.to_string())
     }
@@ -261,7 +260,7 @@ impl LiumApiClient {
         });
 
         let response = self.post("funding/wallets", Some(body)).await?;
-        let result: Value = response.json().await.map_err(LiumError::Request)?;
+        let result: Value = response.json().await.map_err(HttpError::Request)?;
 
         Ok(result)
     }

@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "crates/lium-core",
+    "crates/lium-utils", 
+    "crates/lium-api",
     ".",
 ]
 resolver = "2"
@@ -43,6 +45,8 @@ path = "src/lib.rs"
 [dependencies]
 # Local crates
 lium-core = { path = "crates/lium-core" }
+lium-utils = { path = "crates/lium-utils" }
+lium-api = { path = "crates/lium-api" }
 
 # CLI framework
 clap = { version = "4.4", features = ["derive", "env"] }

@@ -260,8 +260,9 @@ async fn handle_exec(
 ) -> Result<()> {
     use crate::api::LiumApiClient;
     use crate::display::{print_error, print_info, print_warning};
-    use crate::helpers::{extract_ssh_details, resolve_pod_targets};
-    use crate::ssh_utils;
+    use crate::helpers::resolve_pod_targets;
+
+    use lium_utils::extract_ssh_details;
     use std::collections::HashMap;
 
     // Validate input
@@ -326,7 +327,7 @@ async fn handle_exec(
         print_info(&format!("Pod: {} ({})", pod.huid, identifier));
 
         let (host, port, user) = extract_ssh_details(pod)?;
-        let result = ssh_utils::execute_remote_command(
+        let result = lium_utils::execute_remote_command(
             &host,
             port,
             &user,
@@ -363,7 +364,7 @@ async fn handle_exec(
                 Err(e) => return (pod.huid.clone(), identifier.clone(), Err(e)),
             };
 
-            let result = ssh_utils::execute_remote_command(
+            let result = lium_utils::execute_remote_command(
                 &host,
                 port,
                 &user,
@@ -430,8 +431,9 @@ async fn handle_exec(
 async fn handle_ssh(pod: String, config: &Config) -> Result<()> {
     use crate::api::LiumApiClient;
     use crate::display::print_info;
-    use crate::helpers::{extract_ssh_details, resolve_single_pod_target};
-    use crate::ssh_utils;
+    use crate::helpers::resolve_single_pod_target;
+
+    use lium_utils::extract_ssh_details;
 
     let client = LiumApiClient::from_config()?;
 
@@ -445,7 +447,7 @@ async fn handle_ssh(pod: String, config: &Config) -> Result<()> {
     let private_key_path = config.get_ssh_private_key_path()?;
 
     // Execute interactive SSH
-    ssh_utils::execute_ssh_interactive(&host, port, &user, &private_key_path)?;
+    lium_utils::execute_ssh_interactive(&host, port, &user, &private_key_path)?;
 
     Ok(())
 }
@@ -459,8 +461,9 @@ async fn handle_scp(
 ) -> Result<()> {
     use crate::api::LiumApiClient;
     use crate::display::print_info;
-    use crate::helpers::{extract_ssh_details, resolve_single_pod_target};
-    use crate::ssh_utils;
+    use crate::helpers::resolve_single_pod_target;
+
+    use lium_utils::extract_ssh_details;
     use std::path::Path;
 
     let client = LiumApiClient::from_config()?;
@@ -527,7 +530,7 @@ async fn handle_scp(
             if !dir_str.is_empty() && dir_str != "/" {
                 print_info(&format!("Creating remote directory: {}", dir_str));
                 let mkdir_cmd = format!("mkdir -p '{}'", dir_str);
-                let _ = ssh_utils::execute_remote_command(
+                let _ = lium_utils::execute_remote_command(
                     &host,
                     port,
                     &user,
@@ -541,7 +544,7 @@ async fn handle_scp(
     }
 
     // Execute SCP
-    ssh_utils::execute_scp_command(
+    lium_utils::execute_scp_command(
         &host,
         port,
         &user,
@@ -563,8 +566,9 @@ async fn handle_wallet_copy(
     _config: &Config,
 ) -> Result<()> {
     use crate::display::{print_error, print_info, print_success};
-    use crate::helpers::{extract_ssh_details, resolve_pod_targets};
-    use crate::ssh_utils;
+    use crate::helpers::resolve_pod_targets;
+
+    use lium_utils::extract_ssh_details;
     use std::path::PathBuf;
 
     // Parse pod targets
@@ -654,7 +658,7 @@ async fn handle_wallet_copy(
 
         // Create .bittensor directory structure
         let mkdir_cmd = "mkdir -p ~/.bittensor/wallets/default/hotkeys";
-        if let Err(e) = ssh_utils::execute_remote_command(
+        if let Err(e) = lium_utils::execute_remote_command(
             &host,
             port,
             &user,
@@ -676,7 +680,7 @@ async fn handle_wallet_copy(
         for (local_path, remote_rel_path) in &files_to_copy {
             let remote_path = format!("~/{}", remote_rel_path);
 
-            match ssh_utils::execute_scp_command(
+            match lium_utils::execute_scp_command(
                 &host,
                 port,
                 &user,
@@ -736,8 +740,9 @@ async fn handle_rsync(
 ) -> Result<()> {
     use crate::api::LiumApiClient;
     use crate::display::print_info;
-    use crate::helpers::{extract_ssh_details, resolve_single_pod_target};
-    use crate::ssh_utils;
+    use crate::helpers::resolve_single_pod_target;
+
+    use lium_utils::extract_ssh_details;
 
     let client = LiumApiClient::from_config()?;
 
@@ -786,7 +791,7 @@ async fn handle_rsync(
     let private_key_path = config.get_ssh_private_key_path()?;
 
     // Execute rsync
-    ssh_utils::execute_rsync_command(
+    lium_utils::execute_rsync_command(
         &host,
         port,
         &user,

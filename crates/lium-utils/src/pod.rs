@@ -1,4 +1,4 @@
-use crate::errors::{LiumError, Result};
+use crate::errors::{ParseError, Result, UtilsError};
 use lium_core::PodInfo;
 
 /// Utility functions for working with pods
@@ -31,10 +31,10 @@ impl PodUtils {
             return Ok(id.to_string());
         }
 
-        Err(LiumError::InvalidInput(format!(
+        Err(UtilsError::Parse(ParseError::InvalidFormat(format!(
             "Could not determine executor ID for pod '{}'",
             pod.huid
-        )))
+        ))))
     }
 
     /// Extract SSH connection details from a pod

@@ -1067,6 +1067,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "241eaef5fd12c88705a01fc1066c48c4b36e0dd4377dcdc7ec3942cea7a69956"
 
 [[package]]
+name = "lium-api"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "lium-core",
+ "lium-utils",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "lium-core"
 version = "0.1.0"
 dependencies = [
@@ -1093,7 +1109,9 @@ dependencies = [
  "dotenv",
  "futures",
  "home",
+ "lium-api",
  "lium-core",
+ "lium-utils",
  "rand",
  "regex",
  "reqwest",
@@ -1105,6 +1123,28 @@ dependencies = [
  "thiserror",
  "tokio",
  "url",
+ "uuid",
+ "which",
+]
+
+[[package]]
+name = "lium-utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.21.7",
+ "bollard",
+ "chrono",
+ "dirs",
+ "futures",
+ "home",
+ "lium-core",
+ "regex",
+ "serde",
+ "serde_json",
+ "ssh2",
+ "thiserror",
+ "tokio",
  "uuid",
  "which",
 ]

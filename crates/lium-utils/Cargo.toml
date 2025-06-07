@@ -1,0 +1,45 @@
+[package]
+name = "lium-utils"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Local crates
+lium-core = { path = "../lium-core" }
+
+# SSH
+ssh2 = "0.9"
+
+# Docker
+bollard = "0.16"
+
+# Async runtime
+tokio = { workspace = true }
+futures = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Regex
+regex = { workspace = true }
+
+# UUID generation
+uuid = { workspace = true }
+
+# Base64 for SSH keys
+base64 = "0.21"
+
+# File operations
+home = "0.5"
+dirs = "5.0"
+
+# Process execution
+which = "4.4"
+
+# Date/time
+chrono = { workspace = true } 

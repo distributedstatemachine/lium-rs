@@ -1,4 +1,4 @@
-use crate::errors::{LiumError, Result};
+use crate::errors::{ParseError, Result, UtilsError};
 
 /// Trait for parsing different types of commands/inputs
 pub trait Parser<T> {
@@ -19,9 +19,9 @@ impl Parser<String> for SshCommandParser {
         let parts: Vec<&str> = ssh_cmd.split_whitespace().collect();
 
         if parts.len() < 2 {
-            return Err(LiumError::InvalidInput(
+            return Err(UtilsError::Parse(ParseError::InvalidFormat(
                 "Invalid SSH command format".to_string(),
-            ));
+            )));
         }
 
         let mut port = 22u16;
@@ -34,13 +34,13 @@ impl Parser<String> for SshCommandParser {
                 "-p" => {
                     if i + 1 < parts.len() {
                         port = parts[i + 1].parse().map_err(|_| {
-                            LiumError::InvalidInput("Invalid port number".to_string())
+                            ParseError::InvalidFormat("Invalid port number".to_string())
                         })?;
                         i += 2;
                     } else {
-                        return Err(LiumError::InvalidInput(
+                        return Err(UtilsError::Parse(ParseError::InvalidFormat(
                             "Missing port number after -p".to_string(),
-                        ));
+                        )));
                     }
                 }
                 part if part.contains('@') => {
@@ -52,17 +52,17 @@ impl Parser<String> for SshCommandParser {
         }
 
         if user_host.is_empty() {
-            return Err(LiumError::InvalidInput(
+            return Err(UtilsError::Parse(ParseError::InvalidFormat(
                 "No user@host found in SSH command".to_string(),
-            ));
+            )));
         }
 
         // Split user@host
         let user_host_parts: Vec<&str> = user_host.split('@').collect();
         if user_host_parts.len() != 2 {
-            return Err(LiumError::InvalidInput(
+            return Err(UtilsError::Parse(ParseError::InvalidFormat(
                 "Invalid user@host format".to_string(),
-            ));
+            )));
         }
 
         let user = user_host_parts[0].to_string();
@@ -94,8 +94,8 @@ mod tests {
         let result = parser.parse("ssh -p 2222 ubuntu@example.com").unwrap();
         assert_eq!(
             result,
-            ("example.com".to_string(), 2222, "ubuntu".to_string())
-        );
+            ("example.com".to_string(), 2222, "ubuntu".to_string()))
+        ;
 
         // Invalid format
         assert!(parser.parse("ssh").is_err());

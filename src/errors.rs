@@ -26,6 +26,9 @@ pub enum LiumError {
     #[error("Docker error: {0}")]
     Docker(#[from] DockerError),
 
+    #[error("Utils error: {0}")]
+    Utils(#[from] lium_utils::UtilsError),
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 

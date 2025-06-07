@@ -1,0 +1,29 @@
+[package]
+name = "lium-api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Local crates
+lium-core = { path = "../lium-core" }
+lium-utils = { path = "../lium-utils" }
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# URL parsing
+url = "2.4"
+
+# Date/time
+chrono = { workspace = true } 
