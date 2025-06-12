@@ -16,7 +16,11 @@ use log::debug;
 
 #[derive(Args)]
 pub struct LsArgs {
-    /// Filter by GPU type (e.g., RTX4090, H100)
+    /// GPU type to filter by (e.g., RTX4090, H100) - can also use --gpu flag
+    #[arg(value_name = "GPU_TYPE")]
+    pub gpu_type: Option<String>,
+
+    /// Filter by GPU type (e.g., RTX4090, H100) - alternative to positional argument
     #[arg(short, long)]
     pub gpu: Option<String>,
 
@@ -110,7 +114,10 @@ pub async fn handle(args: LsArgs, config: &Config) -> Result<()> {
     debug!("Successfully fetched {} executors", executors.len());
 
     // Apply filters
-    if let Some(gpu_type) = &args.gpu {
+    // Determine GPU filter - positional argument takes precedence over --gpu flag
+    let gpu_filter = args.gpu_type.as_ref().or(args.gpu.as_ref());
+
+    if let Some(gpu_type) = gpu_filter {
         debug!("Filtering by GPU type: {}", gpu_type);
         executors = filter_by_gpu_type(&executors, gpu_type);
         debug!("After GPU filter: {} executors", executors.len());
@@ -347,9 +354,12 @@ fn export_results(executors: &[lium_core::ExecutorInfo], export_path: &str) -> R
 fn show_filter_summary(args: &LsArgs) {
     let mut filters = Vec::new();
 
-    if let Some(gpu) = &args.gpu {
+    // Show GPU filter (from either positional or flag)
+    let gpu_filter = args.gpu_type.as_ref().or(args.gpu.as_ref());
+    if let Some(gpu) = gpu_filter {
         filters.push(format!("GPU: {}", gpu));
     }
+
     if let Some(price) = &args.price {
         filters.push(format!("Price: ${}/GPU/hr", price));
     }
@@ -474,4 +484,25 @@ mod tests {
         let filtered = filter_by_min_ram(&executors, 40.0);
         assert_eq!(filtered.len(), 0); // None have 40GB+ RAM
     }
+
+    #[test]
+    fn test_export_csv() {
+        let executors = vec![create_test_executor("1", "RTX4090", 1.0, true)];
+        let temp_file = "/tmp/test_export.csv";
+
+        export_results(&executors, temp_file).expect("Export should succeed");
+
+        let content = std::fs::read_to_string(temp_file).expect("File should exist");
+        assert!(content.contains("HUID,GPU Type"));
+        assert!(content.contains("exec-1,RTX4090"));
+
+        // Cleanup
+        std::fs::remove_file(temp_file).ok();
+    }
 }
+
+// TODO: Add real-time updates for availability
+// TODO: Add cost estimation features
+// TODO: Add favorites/bookmarking system
+// TODO: Add notification system for price changes
+// TODO: Add integration with external monitoring tools

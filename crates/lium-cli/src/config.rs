@@ -79,8 +79,8 @@ impl lium_api::ApiConfig for Config {
 /// Configuration manager for Lium
 #[derive(Debug, Clone)]
 pub struct Config {
-    config_path: PathBuf,
-    data: ConfigData,
+    pub config_path: PathBuf,
+    pub data: ConfigData,
 }
 
 impl Config {

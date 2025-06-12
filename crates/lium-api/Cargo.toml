@@ -27,3 +27,5 @@ url = "2.4"
 
 # Date/time
 chrono = { workspace = true } 
+
+log = "0.4.27"

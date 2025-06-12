@@ -16,7 +16,7 @@ use std::collections::HashMap;
 
 #[derive(Args)]
 pub struct UpArgs {
-    /// Docker image to run
+    /// Template ID to use (replaces --image)
     #[arg(short, long)]
     pub image: Option<String>,
 
@@ -54,18 +54,156 @@ pub struct UpArgs {
 }
 
 pub async fn handle(args: UpArgs, config: &Config) -> Result<()> {
-    let client = LiumApiClient::from_config(config)?;
+    // DEBUG: Check if API key exists in config
+    print_info("DEBUG: Checking API key configuration...");
 
-    // Get Docker image
-    let docker_image = match args.image {
-        Some(image) => {
-            validate_docker_image(&image)?;
-            image
+    match config.get_api_key()? {
+        Some(key) => {
+            if key.len() >= 8 {
+                print_info(&format!(
+                    "DEBUG: API key found in config: {}...{}",
+                    &key[..4],
+                    &key[key.len() - 4..]
+                ));
+            } else {
+                print_info("DEBUG: API key found but too short to display");
+            }
         }
         None => {
-            return Err(CliError::InvalidInput(
-                "Docker image is required. Use --image or -i flag.".to_string(),
-            ));
+            print_info("DEBUG: No API key found in config or environment");
+        }
+    }
+
+    // DEBUG: Check environment variable
+    match std::env::var("LIUM_API_KEY") {
+        Ok(key) => {
+            if key.len() >= 8 {
+                print_info(&format!(
+                    "DEBUG: LIUM_API_KEY env var found: {}...{}",
+                    &key[..4],
+                    &key[key.len() - 4..]
+                ));
+            } else {
+                print_info("DEBUG: LIUM_API_KEY env var found but too short");
+            }
+        }
+        Err(_) => {
+            print_info("DEBUG: LIUM_API_KEY environment variable not set");
+        }
+    }
+
+    print_info("DEBUG: Creating API client from config...");
+    let client = match LiumApiClient::from_config(config) {
+        Ok(c) => {
+            print_info("DEBUG: API client created successfully");
+            c
+        }
+        Err(e) => {
+            print_error(&format!("DEBUG: Failed to create API client: {}", e));
+            return Err(e);
+        }
+    };
+
+    // Handle both templates and Docker images
+    let template_id = match args.image {
+        Some(image_input) => {
+            // Check if input looks like a Docker image (contains : or /) or a template ID
+            if image_input.contains(':')
+                || image_input.contains('/')
+                || image_input.starts_with("docker.io")
+            {
+                // Looks like a Docker image - try to find matching template
+                print_info(&format!(
+                    "Looking for template with Docker image: {}",
+                    image_input
+                ));
+
+                print_info("DEBUG: About to call get_templates()...");
+                match client.get_templates().await {
+                    Ok(templates) => {
+                        print_info(&format!(
+                            "DEBUG: Successfully fetched {} templates",
+                            templates.len()
+                        ));
+
+                        // Try to find existing template with this docker image
+                        let matching_template = templates.iter().find(|template| {
+                            let docker_tag =
+                                template.docker_image_tag.as_deref().unwrap_or("latest");
+                            let full_image = format!("{}:{}", template.docker_image, docker_tag);
+
+                            full_image == image_input || template.docker_image == image_input
+                        });
+
+                        if let Some(template) = matching_template {
+                            print_info(&format!(
+                                "Found existing template '{}' for image {}",
+                                template.name, image_input
+                            ));
+                            template.id.clone()
+                        } else {
+                            // No existing template found - attempt to use image directly
+                            print_info(&format!("No existing template found for {}. Attempting to use as template ID...", image_input));
+                            image_input
+                        }
+                    }
+                    Err(e) => {
+                        print_error(&format!("DEBUG: API call to get_templates() failed"));
+                        print_error(&format!("Failed to fetch templates: {}", e));
+                        print_info(&format!(
+                            "Attempting to use '{}' directly as template ID",
+                            image_input
+                        ));
+                        image_input
+                    }
+                }
+            } else {
+                // Looks like a template ID - use directly
+                print_info(&format!("Using template ID: {}", image_input));
+                image_input
+            }
+        }
+        None => {
+            // No input provided - fetch templates and use default
+            print_info("No image specified, fetching available templates...");
+
+            print_info("DEBUG: About to call get_templates() for default template...");
+            match client.get_templates().await {
+                Ok(templates) => {
+                    print_info(&format!(
+                        "DEBUG: Successfully fetched {} templates",
+                        templates.len()
+                    ));
+
+                    if templates.is_empty() {
+                        return Err(CliError::OperationFailed("No templates found".to_string()));
+                    }
+
+                    // Use first template as default
+                    let first_template = &templates[0];
+                    let template_id = first_template.id.clone();
+                    let template_name = &first_template.name;
+                    let docker_image = &first_template.docker_image;
+                    let docker_tag = first_template
+                        .docker_image_tag
+                        .as_deref()
+                        .unwrap_or("latest");
+
+                    print_info(&format!(
+                        "Using default template: '{}' ({}:{})",
+                        template_name, docker_image, docker_tag
+                    ));
+                    template_id
+                }
+                Err(e) => {
+                    print_error(&format!("DEBUG: API call to get_templates() failed"));
+                    print_error(&format!("Failed to fetch templates: {}", e));
+                    print_error(&format!("DEBUG: Error details: {:?}", e));
+                    return Err(CliError::OperationFailed(
+                        "Could not fetch templates".to_string(),
+                    ));
+                }
+            }
         }
     };
 
@@ -84,7 +222,20 @@ pub async fn handle(args: UpArgs, config: &Config) -> Result<()> {
     };
 
     // Fetch and filter executors
-    let mut executors = client.get_executors().await?;
+    print_info("DEBUG: About to fetch executors...");
+    let mut executors = match client.get_executors().await {
+        Ok(execs) => {
+            print_info(&format!(
+                "DEBUG: Successfully fetched {} executors",
+                execs.len()
+            ));
+            execs
+        }
+        Err(e) => {
+            print_error(&format!("DEBUG: Failed to fetch executors: {}", e));
+            return Err(e.into());
+        }
+    };
 
     if executors.is_empty() {
         return Err(CliError::OperationFailed("No executors found".to_string()));
@@ -150,7 +301,7 @@ pub async fn handle(args: UpArgs, config: &Config) -> Result<()> {
         "Cost: ${:.3}/GPU/hr (${:.3}/hr total)",
         selected_executor.price_per_gpu_hour, selected_executor.price_per_hour
     ));
-    print_info(&format!("Docker Image: {}", docker_image));
+    print_info(&format!("Using template/image: {}", template_id));
 
     if !env_vars.is_empty() {
         print_info(&format!("Environment Variables: {:?}", env_vars));
@@ -181,14 +332,22 @@ pub async fn handle(args: UpArgs, config: &Config) -> Result<()> {
     let pod_name = args
         .name
         .unwrap_or_else(|| format!("pod-{}", selected_executor.huid));
-    let template_id = docker_image;
+
     let ssh_keys = config.get_ssh_public_keys().unwrap_or_default();
 
+    // Debug: Print what we're about to send
+    print_info(&format!(
+        "Renting: executor_id={}, pod_name={}, template_id={}",
+        executor_id, pod_name, template_id
+    ));
+
+    print_info("DEBUG: About to call rent_pod API...");
     match client
         .rent_pod(&executor_id, &pod_name, &template_id, ssh_keys)
         .await
     {
         Ok(pod_info) => {
+            print_info("DEBUG: rent_pod API call successful");
             print_success("Pod started successfully!");
             println!();
 
@@ -222,7 +381,9 @@ pub async fn handle(args: UpArgs, config: &Config) -> Result<()> {
             }
         }
         Err(e) => {
+            print_error(&format!("DEBUG: rent_pod API call failed"));
             print_error(&format!("Failed to start pod: {}", e));
+            print_error(&format!("DEBUG: Error details: {:?}", e));
             return Err(e.into());
         }
     }

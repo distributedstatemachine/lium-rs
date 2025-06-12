@@ -1055,6 +1055,7 @@ dependencies = [
  "chrono",
  "lium-core",
  "lium-utils",
+ "log",
  "reqwest",
  "serde",
  "serde_json",
