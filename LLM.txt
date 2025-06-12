@@ -1,0 +1,205 @@
+# Lium - Celium GPU Compute Management Toolchain
+
+## Project Overview
+
+Lium is a high-performance Rust toolchain for managing Celium GPU clusters. It provides pod-based compute resource organization, async job execution, and comprehensive CLI tools for distributed GPU workloads.
+
+**Key Capabilities:**
+- Pod-based GPU cluster orchestration
+- SSH-based remote command execution  
+- Docker container support
+- REST API client for Celium platform
+- Interactive CLI with rich targeting options
+- Real-time resource monitoring
+
+## Architecture
+
+Lium is organized as a Rust workspace with 4 modular crates:
+
+```
+lium-rs/
+├── src/main.rs              # Thin CLI entry point
+├── crates/
+│   ├── lium-core/           # Pure domain logic & models
+│   ├── lium-api/            # HTTP API client for Celium
+│   ├── lium-utils/          # SSH, Docker & system utilities
+│   └── lium-cli/            # CLI interface & commands
+└── Cargo.toml               # Workspace configuration
+```
+
+### Crate Responsibilities
+
+**lium-core**: Pure business logic with no I/O dependencies
+- Domain models (Pod, Executor, Template)
+- Error definitions (LiumError, Result)  
+- Optimization algorithms (Pareto frontier calculation)
+- Utility functions (filtering, parsing, validation)
+
+**lium-api**: Celium HTTP API client
+- Async REST client built on reqwest
+- Authentication handling
+- Error handling for API responses
+- Response models and serialization
+
+**lium-utils**: System-level utilities
+- SSH operations and remote execution
+- Docker API integration via Bollard
+- Process management
+- File system operations
+
+**lium-cli**: Command-line interface
+- Clap-based CLI framework
+- Interactive command execution
+- Configuration management
+- Rich output formatting and display
+
+## Key Commands
+
+The CLI provides these core commands:
+- `lium ls` - List pods and executors
+- `lium exec <target> <cmd>` - Execute commands on pods
+- `lium up` - Start/create pods
+- `lium down` - Stop/destroy pods  
+- `lium ps` - Show running processes
+- `lium ssh <target>` - SSH into pods
+- `lium rsync <src> <dst>` - Sync files
+- `lium config` - Manage configuration
+- `lium init` - Initialize project
+- `lium image` - Manage Docker images
+
+### Flexible Targeting
+
+Commands support flexible pod targeting:
+- By index: `lium exec 1 "command"`
+- By name: `lium exec my-pod "command"`
+- By HUID: `lium exec brave-cat-1234 "command"`
+- Multiple: `lium exec 1,3,5 "command"`
+- All pods: `lium exec all "command"`
+
+## Technical Stack
+
+**Core Dependencies:**
+- **Tokio** - Async runtime for high-performance I/O
+- **Clap** - CLI framework with derive macros
+- **Reqwest** - HTTP client for API communication
+- **SSH2** - SSH protocol implementation
+- **Bollard** - Docker API client
+- **Serde** - Serialization/deserialization
+- **Anyhow/Thiserror** - Error handling
+
+**Development Tools:**
+- **Just** - Command runner for development tasks
+- **Cargo** - Rust package manager and build system
+
+## Development Workflow
+
+Common development commands (via justfile):
+
+```bash
+# Code quality
+just fix          # Fix clippy issues and format code  
+just check        # Run clippy and format checks
+just qa           # Full quality assurance (check + test)
+
+# Building
+just build        # Development build
+just release      # Release build with optimizations
+just install      # Install binary locally
+
+# Testing
+just test         # Run test suite
+just test-verbose # Run tests with output
+
+# Maintenance  
+just clean        # Clean build artifacts
+just update       # Update dependencies
+just docs         # Generate and open documentation
+```
+
+## Configuration
+
+Lium uses a layered configuration system:
+- Default values
+- Configuration files
+- Environment variables  
+- Command-line arguments
+
+Configuration is managed through the `lium config` command:
+```bash
+lium config set api-url https://api.celium.dev
+lium config set auth-token your-token
+lium config show
+```
+
+## Code Patterns
+
+**Error Handling**: Uses `anyhow::Result` for application errors and custom `LiumError` types for domain-specific errors.
+
+**Async/Await**: All I/O operations are async using Tokio runtime.
+
+**Configuration**: Uses builder pattern with defaults, environment variables, and explicit configuration.
+
+**CLI Structure**: Commands are organized in `crates/lium-cli/src/commands/` with each command in its own module.
+
+**Domain Models**: Core types are defined in `lium-core` and shared across crates.
+
+## Building and Running
+
+```bash
+# Build the project
+cargo build --release
+
+# Install CLI globally
+cargo install --path .
+
+# Run specific command
+cargo run -- ls
+
+# Run with optimizations
+cargo run --release -- exec 1 "nvidia-smi"
+```
+
+## Testing
+
+The project includes comprehensive tests:
+```bash
+# Run all tests
+cargo test
+
+# Run tests for specific crate
+cargo test -p lium-core
+
+# Run with output
+cargo test -- --nocapture
+```
+
+## Key Files for AI Agents
+
+When working with this codebase, focus on:
+
+1. **Entry Point**: `src/main.rs` - Simple wrapper around lium-cli
+2. **Core Models**: `crates/lium-core/src/models.rs` - Domain types
+3. **CLI Commands**: `crates/lium-cli/src/commands/` - All command implementations
+4. **Configuration**: `crates/lium-cli/src/config.rs` - Config management
+5. **API Client**: `crates/lium-api/src/` - Celium API integration
+6. **Utilities**: `crates/lium-utils/src/` - SSH, Docker, system tools
+
+## Common Patterns
+
+**Adding a New Command:**
+1. Create new module in `crates/lium-cli/src/commands/`
+2. Add command struct with Clap derives
+3. Implement async execution function
+4. Add to mod.rs and main CLI enum
+
+**Error Handling:**
+- Use `anyhow::Result` for most functions
+- Create specific error types in `lium-core/src/errors.rs` when needed
+- Use `.context()` to add error context
+
+**Configuration:**
+- Add new config fields to config structs
+- Update validation logic
+- Add CLI arguments/environment variable support
+
+This codebase follows Rust best practices with clear separation of concerns, comprehensive error handling, and modular architecture suitable for both CLI usage and library integration. 
