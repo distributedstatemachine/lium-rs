@@ -15,7 +15,10 @@ impl Parser<String> for SshCommandParser {
 
     /// Parse SSH connection command to extract host, port, user
     fn parse(&self, ssh_cmd: &str) -> Result<Self::Output> {
-        // Expected format: "ssh -p <port> <user>@<host>" or "ssh <user>@<host>"
+        // Expected formats:
+        // "ssh -p <port> <user>@<host>"
+        // "ssh <user>@<host> -p <port>"
+        // "ssh <user>@<host>"
         let parts: Vec<&str> = ssh_cmd.split_whitespace().collect();
 
         if parts.len() < 2 {
@@ -27,27 +30,11 @@ impl Parser<String> for SshCommandParser {
         let mut port = 22u16;
         let mut user_host = "";
 
-        // Parse command parts
-        let mut i = 1; // Skip "ssh"
-        while i < parts.len() {
-            match parts[i] {
-                "-p" => {
-                    if i + 1 < parts.len() {
-                        port = parts[i + 1].parse().map_err(|_| {
-                            ParseError::InvalidFormat("Invalid port number".to_string())
-                        })?;
-                        i += 2;
-                    } else {
-                        return Err(UtilsError::Parse(ParseError::InvalidFormat(
-                            "Missing port number after -p".to_string(),
-                        )));
-                    }
-                }
-                part if part.contains('@') => {
-                    user_host = part;
-                    break;
-                }
-                _ => i += 1,
+        // First pass: find user@host
+        for part in &parts[1..] {
+            if part.contains('@') {
+                user_host = part;
+                break;
             }
         }
 
@@ -55,6 +42,18 @@ impl Parser<String> for SshCommandParser {
             return Err(UtilsError::Parse(ParseError::InvalidFormat(
                 "No user@host found in SSH command".to_string(),
             )));
+        }
+
+        // Second pass: find -p flag (can be before or after user@host)
+        let mut i = 1;
+        while i < parts.len() {
+            if parts[i] == "-p" && i + 1 < parts.len() {
+                port = parts[i + 1]
+                    .parse()
+                    .map_err(|_| ParseError::InvalidFormat("Invalid port number".to_string()))?;
+                break;
+            }
+            i += 1;
         }
 
         // Split user@host
@@ -90,11 +89,18 @@ mod tests {
         let result = parser.parse("ssh root@192.168.1.10").unwrap();
         assert_eq!(result, ("192.168.1.10".to_string(), 22, "root".to_string()));
 
-        // Format with port
+        // Format with port before user@host
         let result = parser.parse("ssh -p 2222 ubuntu@example.com").unwrap();
         assert_eq!(
             result,
             ("example.com".to_string(), 2222, "ubuntu".to_string())
+        );
+
+        // Format with port after user@host (the case that was failing)
+        let result = parser.parse("ssh root@198.145.127.160 -p 45480").unwrap();
+        assert_eq!(
+            result,
+            ("198.145.127.160".to_string(), 45480, "root".to_string())
         );
 
         // Invalid format

@@ -87,19 +87,21 @@ pub enum Commands {
     /// List active pods
     Ps(commands::ps::PsArgs),
     /// Execute command in pod(s)
+    #[command(
+        trailing_var_arg = true,
+        about = "Execute a command on one or more running pods via SSH",
+        long_about = "Execute a command on one or more running pods via SSH.\n\n\
+        Examples:\n  \
+        lium exec 1 ls -la\n  \
+        lium exec 1,2,3 nvidia-smi\n  \
+        lium exec all uptime\n  \
+        lium exec 1 --script script.py\n  \
+        lium exec 3 --env API_KEY=secret echo \\$API_KEY"
+    )]
     Exec {
-        /// Pod HUID(s), index(es), or "all"
-        #[arg(value_name = "POD_TARGET")]
-        pods: Vec<String>,
-        /// Command to execute
-        #[arg(last = true, value_name = "COMMAND")]
-        command: Vec<String>,
-        /// Path to script file to upload and execute
-        #[arg(long)]
-        script: Option<std::path::PathBuf>,
-        /// Environment variables (KEY=VALUE format)
-        #[arg(long)]
-        env: Vec<String>,
+        /// Arguments: <POD_TARGETS> [OPTIONS] [COMMAND...]
+        #[arg(value_name = "ARGS")]
+        args: Vec<String>,
     },
     /// SSH into pod
     Ssh {
@@ -242,20 +244,58 @@ pub async fn run() -> Result<()> {
         Commands::Ls(args) => commands::ls::handle(args, &config).await,
         Commands::Up(args) => commands::up::handle(args, &config).await,
         Commands::Ps(args) => commands::ps::handle(args, &config).await,
-        Commands::Exec {
-            pods,
-            command,
-            script,
-            env,
-        } => {
-            commands::exec::handle(
-                pods,
-                command.join(" "),
-                script.map(|p| p.to_string_lossy().to_string()),
+        Commands::Exec { args } => {
+            // Manually parse the exec arguments
+            if args.is_empty() {
+                return Err(CliError::InvalidInput(
+                    "No pod targets specified".to_string(),
+                ));
+            }
+
+            let pod_targets = args[0].clone();
+            let mut command = Vec::new();
+            let mut script = None;
+            let mut env = Vec::new();
+
+            let mut i = 1;
+            while i < args.len() {
+                match args[i].as_str() {
+                    "--script" | "-s" => {
+                        if i + 1 < args.len() {
+                            script = Some(args[i + 1].clone());
+                            i += 2;
+                        } else {
+                            return Err(CliError::InvalidInput(
+                                "--script requires a value".to_string(),
+                            ));
+                        }
+                    }
+                    "--env" | "-e" => {
+                        if i + 1 < args.len() {
+                            env.push(args[i + 1].clone());
+                            i += 2;
+                        } else {
+                            return Err(CliError::InvalidInput(
+                                "--env requires a value".to_string(),
+                            ));
+                        }
+                    }
+                    _ => {
+                        // Everything else is part of the command
+                        command.extend_from_slice(&args[i..]);
+                        break;
+                    }
+                }
+            }
+
+            let exec_args = commands::exec::ExecArgs {
+                pod_targets,
+                command,
+                script,
                 env,
-                &config,
-            )
-            .await
+            };
+
+            commands::exec::handle(exec_args, &config).await
         }
         Commands::Ssh { pod } => commands::ssh::handle(pod, &config).await,
         Commands::Scp {

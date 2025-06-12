@@ -424,6 +424,7 @@ fn extract_gpu_model(gpu_name: &str) -> &str {
             .unwrap_or("GPU")
     }
 }
+
 /// Display detailed pod information
 pub fn display_pod_details(pod: &PodInfo) {
     println!("{}", format!("Pod Details: {}", pod.name).bold().blue());
