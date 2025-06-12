@@ -6,25 +6,232 @@ use clap::Args;
 use lium_api::LiumApiClient;
 use log::{debug, info};
 
+/// Command-line arguments for the `ps` command that lists and inspects running pods.
+///
+/// The `ps` command is the primary way to monitor active cloud GPU pods, check their
+/// status, resource usage, and connection information. It provides both listing and
+/// detailed inspection capabilities.
+///
+/// # Examples
+/// ```bash
+/// # List all active pods
+/// lium ps
+///
+/// # Show all pods including stopped ones
+/// lium ps --all
+///
+/// # Filter by status
+/// lium ps --status running
+/// lium ps --status starting
+///
+/// # Filter by GPU type
+/// lium ps --gpu RTX4090
+///
+/// # Show detailed information for specific pods
+/// lium ps pod1,pod2
+/// lium ps 1,3       # by index
+/// lium ps all       # details for all pods
+/// ```
+///
+/// # Pod Target Resolution
+/// When specific targets are provided, the command shows detailed information instead
+/// of the standard table listing. Targets can be:
+/// - **Pod HUIDs**: Direct hardware unique identifiers
+/// - **Pod indices**: Numeric references from table listings (1-based)
+/// - **Pod names**: User-defined or auto-generated names
+/// - **"all"**: Special target to show details for all pods
+///
+/// # Status Filtering
+/// By default, only "active" pods are shown (running, starting, ready). Use `--all`
+/// to include stopped, terminated, or failed pods in the listing.
+///
+/// # TODO
+/// - Add real-time status updates and pod monitoring
+/// - Implement pod resource usage tracking
+/// - Add pod log streaming capabilities
+/// - Support for pod grouping and ta
 #[derive(Args)]
 pub struct PsArgs {
-    /// Show detailed information for specific pods (by HUID, index, or "all")
+    /// Show detailed information for specific pods (comma-separated list).
+    ///
+    /// When targets are provided, the command switches to detailed view mode
+    /// instead of the standard table listing. Each target can be:
+    ///
+    /// - **Pod HUID**: Hardware unique identifier (e.g., "exec-abc123")
+    /// - **Pod index**: Numeric position from `lium ps` output (e.g., "1", "3")
+    /// - **Pod name**: User-defined or auto-generated name (e.g., "my-training-pod")
+    /// - **"all"**: Special keyword to show details for all pods
+    ///
+    /// Multiple targets can be specified separated by commas.
+    /// Examples: "1,3", "exec-abc123,my-pod", "all"
     #[arg(value_name = "POD_TARGET")]
     pub targets: Vec<String>,
 
-    /// Show all pods (including stopped)
+    /// Show all pods regardless of status (including stopped and terminated).
+    ///
+    /// By default, only "active" pods are displayed (running, starting, ready).
+    /// This flag includes pods in all states: stopped, terminated, failed, etc.
+    ///
+    /// Useful for debugging failed pods or tracking pod history.
     #[arg(short, long)]
     pub all: bool,
 
-    /// Filter by pod status (running, starting, stopped)
+    /// Filter pods by their current status.
+    ///
+    /// Common status values include:
+    /// - "running": Pod is active and ready for use
+    /// - "starting": Pod is in the startup process
+    /// - "stopped": Pod has been stopped but not terminated
+    /// - "terminated": Pod has been permanently terminated
+    /// - "failed": Pod startup or operation failed
+    ///
+    /// Status matching is case-insensitive.
     #[arg(short, long)]
     pub status: Option<String>,
 
-    /// Show only pods with specific GPU type
+    /// Filter pods by their assigned GPU type.
+    ///
+    /// Shows only pods running on executors with the specified GPU type.
+    /// Matching is case-insensitive and supports partial matching.
+    ///
+    /// Examples: "RTX4090", "H100", "A100"
     #[arg(short, long)]
     pub gpu: Option<String>,
 }
 
+/// Handles the `ps` command to list active pods and show detailed pod information.
+///
+/// This function serves dual purposes: listing pods in a table format for overview,
+/// and showing detailed information for specific pods when targets are provided.
+/// It includes comprehensive debugging and status analysis.
+///
+/// # Arguments
+/// * `args` - Command-line arguments parsed into `PsArgs` struct
+/// * `config` - User configuration containing API credentials and settings
+///
+/// # Returns
+/// * `Result<()>` - Success or error with detailed error information
+///
+/// # Behavior Modes
+///
+/// ## Listing Mode (default)
+/// When no targets are specified, shows a formatted table with:
+/// - Pod index (for easy reference in other commands)
+/// - Pod HUID (unique identifier)
+/// - Pod name (user-defined or auto-generated)
+/// - Current status (running, starting, etc.)
+/// - GPU configuration (type and count)
+/// - Uptime information
+/// - SSH connection command
+///
+/// ## Detail Mode (with targets)
+/// When targets are provided, shows comprehensive information for each pod:
+/// - Complete pod metadata
+/// - Executor configuration
+/// - Port mappings
+/// - Creation and update timestamps
+/// - SSH connection details
+/// - Environment variables (if any)
+///
+/// # Process Flow
+/// 1. **Target Resolution**: If targets provided, resolve to specific pods
+/// 2. **Pod Fetching**: Retrieve pod information from API
+/// 3. **Filtering**: Apply status and GPU type filters
+/// 4. **Status Analysis**: Categorize pods by status for summary
+/// 5. **Display**: Show results in appropriate format (table or details)
+/// 6. **Summary**: Display pod counts and total cost information
+/// 7. **Index Storage**: Store pod indices for use in other commands
+///
+/// # Filtering Behavior
+/// - **Default**: Shows only "active" pods (running, starting, ready)
+/// - **--all**: Shows pods in all states including stopped and terminated
+/// - **--status**: Shows only pods matching the specified status (case-insensitive)
+/// - **--gpu**: Shows only pods with executors using the specified GPU type
+///
+/// # Data Analysis
+/// The function includes extensive debugging to analyze pod data structure:
+/// - GPU information extraction from various executor fields
+/// - Uptime calculation from multiple timestamp sources
+/// - SSH command parsing and validation
+/// - Status categorization and validation
+///
+/// # Error Conditions
+/// - API connection failures
+/// - Invalid pod targets (non-existent HUIDs, indices, or names)
+/// - Missing or malformed pod data
+/// - SSH configuration issues
+///
+/// # Examples
+/// ```rust
+/// use lium_cli::commands::ps::{handle, PsArgs};
+/// use lium_cli::config::Config;
+///
+/// // List all active pods
+/// let args = PsArgs {
+///     targets: vec![],
+///     all: false,
+///     status: None,
+///     gpu: None,
+/// };
+/// handle(args, &config).await?;
+///
+/// // Show details for specific pods
+/// let args = PsArgs {
+///     targets: vec!["1".to_string(), "3".to_string()],
+///     all: false,
+///     status: None,
+///     gpu: None,
+/// };
+/// handle(args, &config).await?;
+///
+/// // Filter by status and GPU type
+/// let args = PsArgs {
+///     targets: vec![],
+///     all: true,
+///     status: Some("running".to_string()),
+///     gpu: Some("RTX4090".to_string()),
+/// };
+/// handle(args, &config).await?;
+/// ```
+///
+/// # Output Format
+///
+/// ## Table Listing
+/// ```text
+/// Active Pods
+///
+/// ┌───────┬─────────────┬──────────────┬─────────┬──────────┬───────┬─────────┬─────────────────┐
+/// │ Index │ Pod HUID    │ Name         │ Status  │ GPU Type │ Count │ Uptime  │ SSH Command     │
+/// ├───────┼─────────────┼──────────────┼─────────┼──────────┼───────┼─────────┼─────────────────┤
+/// │ 1     │ exec-abc123 │ my-pod       │ running │ RTX4090  │ 1     │ 2h 15m  │ ssh user@host   │
+/// │ 2     │ exec-def456 │ training-job │ running │ H100     │ 2     │ 45m     │ ssh user@host2  │
+/// └───────┴─────────────┴──────────────┴─────────┴──────────┴───────┴─────────┴─────────────────┘
+///
+/// Summary: 2 running, 0 starting, 0 stopped
+/// Total hourly cost: $3.450/hr
+/// ```
+///
+/// ## Detailed View
+/// ```text
+/// Pod details for exec-abc123 (my-pod):
+///   HUID: exec-abc123
+///   Status: running
+///   ID: pod_12345
+///   SSH Command: ssh -p 2222 root@gpu-host.example.com
+///   Port Mappings:
+///     jupyter: 8888
+///     tensorboard: 6006
+///   Created: 2024-01-15 14:30:00 UTC
+///   Updated: 2024-01-15 16:45:00 UTC
+/// ```
+///
+/// # TODO
+/// - Add real-time status updates with periodic refresh
+/// - Implement pod resource usage monitoring (CPU, memory, GPU utilization)
+/// - Add pod log viewing and streaming capabilities
+/// - Support for pod grouping and custom tagging
+/// - Add pod lifecycle management (restart, pause, resume)
+/// - Implement cost tracking and billing information
 pub async fn handle(args: PsArgs, config: &Config) -> Result<()> {
     let client = LiumApiClient::from_config(config)?;
 

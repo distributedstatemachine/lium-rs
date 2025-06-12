@@ -7,7 +7,7 @@ use reqwest::{Client, Response, StatusCode};
 use serde_json::Value;
 
 /// Trait for providing configuration to the API client.
-/// 
+///
 /// This trait allows the main application to implement configuration without creating circular dependencies.
 /// It provides a flexible way to inject API configuration into the client while keeping the client
 /// independent of specific configuration implementations.
@@ -18,12 +18,12 @@ use serde_json::Value;
 /// # Examples
 /// ```rust
 /// use lium_api::client::ApiConfig;
-/// 
+///
 /// struct MyConfig {
 ///     api_key: String,
 ///     base_url: Option<String>,
 /// }
-/// 
+///
 /// impl ApiConfig for MyConfig {
 ///     type Error = String;
 ///     
@@ -41,16 +41,16 @@ pub trait ApiConfig {
     type Error;
 
     /// Retrieves the API key for authentication.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(String)` - The API key if successfully retrieved
     /// * `Err(Self::Error)` - An error if the API key could not be retrieved
     fn get_api_key(&self) -> std::result::Result<String, Self::Error>;
 
     /// Retrieves the base URL for the API.
-    /// 
+    ///
     /// This method is optional and defaults to the official API URL if not implemented.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Some(String))` - A custom base URL if specified
     /// * `Ok(None)` - Use the default official API URL
@@ -61,7 +61,7 @@ pub trait ApiConfig {
 }
 
 /// HTTP client for interacting with the Celium Compute API.
-/// 
+///
 /// This client provides methods for making authenticated HTTP requests to the Celium Compute API.
 /// It handles authentication, request formatting, and response parsing.
 ///
@@ -73,7 +73,7 @@ pub trait ApiConfig {
 /// # Examples
 /// ```rust
 /// use lium_api::client::LiumApiClient;
-/// 
+///
 /// let client = LiumApiClient::new(
 ///     "your-api-key".to_string(),
 ///     Some("https://api.example.com".to_string())
@@ -90,53 +90,53 @@ pub struct LiumApiClient {
 }
 
 /// Implementation of the LiumApiClient struct.
-/// 
+///
 /// This implementation provides methods for creating and managing API clients for the Celium Compute API.
 /// It includes factory methods for different initialization scenarios and handles authentication setup.
-/// 
+///
 /// # Factory Methods
 /// * `new()` - Creates a new client with specified API key and optional base URL
 /// * `from_env()` - Creates a client using API key from environment variable
 /// * `from_api_key()` - Creates a client with just an API key
 /// * `with_base_url()` - Creates a client with custom base URL
-/// 
+///
 /// # Authentication
 /// All methods ensure proper API key handling and logging while maintaining security by
 /// only logging partial API keys in debug messages.
-/// 
+///
 /// # Error Handling
 /// Methods return Result types where appropriate, with detailed error messages for
 /// configuration and environment variable issues.
-/// 
+///
 /// # Examples
 /// ```rust
 /// // Create with API key only
 /// let client = LiumApiClient::from_api_key("your-api-key".to_string());
-/// 
+///
 /// // Create with custom base URL
 /// let client = LiumApiClient::with_base_url(
 ///     "your-api-key".to_string(),
 ///     "https://custom-api.example.com".to_string()
 /// );
-/// 
+///
 /// // Create from environment
 /// let client = LiumApiClient::from_env()?;
 /// ```
 impl LiumApiClient {
     /// Create a new API client
     /// Creates a new instance of LiumApiClient with the specified API key and optional base URL.
-    /// 
+    ///
     /// # Arguments
     /// * `api_key` - The API key used for authentication. This should be a valid API key from the Celium Compute platform.
     /// * `base_url` - Optional custom base URL. If not provided, defaults to "https://celiumcompute.ai/api".
-    /// 
+    ///
     /// # Returns
     /// A new instance of LiumApiClient configured with the provided credentials.
-    /// 
+    ///
     /// # Security
     /// The API key is logged partially (first 4 and last 4 characters) for debugging purposes.
     /// Full API key is never logged to maintain security.
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let client = LiumApiClient::new(
@@ -168,11 +168,11 @@ impl LiumApiClient {
     }
 
     /// Creates a new LiumApiClient instance using the API key from the LIUM_API_KEY environment variable.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(LiumApiClient)` - A new client instance if the environment variable is set
     /// * `Err(ApiError)` - If the LIUM_API_KEY environment variable is not set
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let client = LiumApiClient::from_env()?;
@@ -192,13 +192,13 @@ impl LiumApiClient {
 
     /// Creates a new LiumApiClient instance with the provided API key.
     /// This is a convenience method that uses the default base URL.
-    /// 
+    ///
     /// # Arguments
     /// * `api_key` - The API key to use for authentication
-    /// 
+    ///
     /// # Returns
     /// A new instance of LiumApiClient
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let client = LiumApiClient::from_api_key("your-api-key".to_string());
@@ -209,14 +209,14 @@ impl LiumApiClient {
     }
 
     /// Creates a new LiumApiClient instance with a custom base URL.
-    /// 
+    ///
     /// # Arguments
     /// * `api_key` - The API key to use for authentication
     /// * `base_url` - The custom base URL to use for API requests
-    /// 
+    ///
     /// # Returns
     /// A new instance of LiumApiClient configured with the custom base URL
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let client = LiumApiClient::with_base_url(
@@ -230,14 +230,14 @@ impl LiumApiClient {
     }
 
     /// Creates a new LiumApiClient instance from any configuration implementing the ApiConfig trait.
-    /// 
+    ///
     /// # Arguments
     /// * `config` - A configuration object implementing the ApiConfig trait
-    /// 
+    ///
     /// # Returns
     /// * `Ok(LiumApiClient)` - A new client instance if configuration is valid
     /// * `Err(C::Error)` - If there's an error retrieving configuration values
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let config = MyConfig::new();
@@ -272,18 +272,18 @@ impl LiumApiClient {
     }
 
     /// Makes a GET request to the specified endpoint.
-    /// 
+    ///
     /// # Arguments
     /// * `endpoint` - The API endpoint to request, without leading slash
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Response)` - The HTTP response if successful
     /// * `Err(ApiError)` - If the request fails
-    /// 
+    ///
     /// # Authentication
     /// The request includes both X-API-Key and Authorization headers for compatibility
     /// with different API versions.
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let response = client.get("users/me").await?;
@@ -337,19 +337,19 @@ impl LiumApiClient {
     }
 
     /// Makes a POST request to the specified endpoint with an optional JSON body.
-    /// 
+    ///
     /// # Arguments
     /// * `endpoint` - The API endpoint to request, without leading slash
     /// * `body` - Optional JSON body to send with the request
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Response)` - The HTTP response if successful
     /// * `Err(ApiError)` - If the request fails
-    /// 
+    ///
     /// # Authentication
     /// The request includes both X-API-Key and Authorization headers for compatibility
     /// with different API versions.
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let body = serde_json::json!({
@@ -417,21 +417,21 @@ impl LiumApiClient {
     }
 
     /// Makes a DELETE request to the specified API endpoint.
-    /// 
+    ///
     /// This method handles the construction and execution of DELETE requests to the Celium Compute API.
     /// It includes proper authentication headers and error handling.
-    /// 
+    ///
     /// # Arguments
     /// * `endpoint` - The API endpoint to send the DELETE request to (e.g., "executors/123/rent")
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Response)` - The HTTP response if the request was successful
     /// * `Err(ApiError)` - An error if the request failed
-    /// 
+    ///
     /// # Security
     /// The API key is logged partially (first 4 and last 4 characters) for debugging purposes.
     /// Full API key is never logged to maintain security.
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let response = client.delete("executors/123/rent").await?;
@@ -485,17 +485,17 @@ impl LiumApiClient {
     }
 
     /// Handles HTTP responses and converts them into appropriate Result types.
-    /// 
+    ///
     /// This method processes HTTP responses and converts them into either successful responses
     /// or appropriate error types based on the HTTP status code and response body.
-    /// 
+    ///
     /// # Arguments
     /// * `response` - The HTTP response to process
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Response)` - The original response if successful
     /// * `Err(ApiError)` - An appropriate error based on the response status
-    /// 
+    ///
     /// # Error Handling
     /// The method handles various HTTP status codes:
     /// * 401 - Authentication failed
@@ -504,7 +504,7 @@ impl LiumApiClient {
     /// * 503 - Service unavailable
     /// * 408 - Request timeout
     /// * Other - Generic HTTP error with status code and message
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let response = client.get("endpoint").await?;
@@ -560,15 +560,15 @@ impl LiumApiClient {
     }
 
     /// Retrieves a list of available executors from the Celium Compute API.
-    /// 
+    ///
     /// This method fetches information about all available executors that can be used
     /// for running pods. The response is automatically converted from the API format
     /// to the internal ExecutorInfo type.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Vec<ExecutorInfo>)` - A vector of executor information if successful
     /// * `Err(ApiError)` - An error if the request failed
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let executors = client.get_executors().await?;
@@ -591,14 +591,14 @@ impl LiumApiClient {
     }
 
     /// Retrieves a list of all active pods from the Celium Compute API.
-    /// 
+    ///
     /// This method fetches information about all currently running pods across all executors.
     /// The response is automatically converted from the API format to the internal PodInfo type.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Vec<PodInfo>)` - A vector of pod information if successful
     /// * `Err(ApiError)` - An error if the request failed
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let pods = client.get_pods().await?;
@@ -620,20 +620,20 @@ impl LiumApiClient {
     }
 
     /// Rents a new pod on a specified executor using a template.
-    /// 
+    ///
     /// This method creates a new pod on the specified executor using the provided template
     /// and configuration. The pod will be accessible using the provided SSH public keys.
-    /// 
+    ///
     /// # Arguments
     /// * `executor_id` - The ID of the executor to rent the pod on
     /// * `pod_name` - A unique name for the pod
     /// * `template_id` - The ID of the template to use for the pod
     /// * `user_public_keys` - Vector of SSH public keys that will have access to the pod
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Value)` - The API response containing pod details if successful
     /// * `Err(ApiError)` - An error if the request failed
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let result = client.rent_pod(
@@ -673,18 +673,18 @@ impl LiumApiClient {
     }
 
     /// Stops and unrents a pod from an executor.
-    /// 
+    ///
     /// This method terminates the pod running on the specified executor and releases
     /// the resources. This is a destructive operation that will stop all running
     /// processes in the pod.
-    /// 
+    ///
     /// # Arguments
     /// * `executor_id` - The ID of the executor whose pod should be unrented
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Value)` - The API response confirming the unrent if successful
     /// * `Err(ApiError)` - An error if the request failed
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let result = client.unrent_pod("exec-123").await?;
@@ -703,15 +703,15 @@ impl LiumApiClient {
     }
 
     /// Retrieves a list of available pod templates from the Celium Compute API.
-    /// 
+    ///
     /// This method fetches information about all available templates that can be used
     /// to create new pods. Templates define the base configuration for pods including
     /// the operating system, pre-installed software, and resource limits.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Vec<TemplateInfo>)` - A vector of template information if successful
     /// * `Err(ApiError)` - An error if the request failed
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let templates = client.get_templates().await?;
@@ -733,19 +733,19 @@ impl LiumApiClient {
     }
 
     /// Registers a new Docker image with the Celium Compute platform.
-    /// 
+    ///
     /// This method allows you to register a Docker image that can be used in pods.
     /// The image must be available in a container registry accessible to the platform.
-    /// 
+    ///
     /// # Arguments
     /// * `image_name` - The full name of the Docker image (e.g., "myorg/myapp")
     /// * `digest` - The SHA256 digest of the image
     /// * `tag` - The tag of the image (e.g., "latest", "v1.0.0")
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Value)` - The API response confirming the image registration if successful
     /// * `Err(ApiError)` - An error if the request failed
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let result = client.post_image(
@@ -771,14 +771,14 @@ impl LiumApiClient {
     }
 
     /// Retrieves a list of funding wallets associated with the user's account.
-    /// 
+    ///
     /// This method fetches all funding wallets that have been registered with the Celium Compute platform.
     /// Each wallet represents a funding source that can be used for platform operations.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Value)` - A JSON value containing the list of funding wallets and their details
     /// * `Err(ApiError)` - An error if the request fails or the response cannot be parsed
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let wallets = client.get_funding_wallets().await?;
@@ -795,19 +795,19 @@ impl LiumApiClient {
     }
 
     /// Retrieves detailed information about the currently authenticated user.
-    /// 
+    ///
     /// This method fetches the user's profile information, including their access key,
     /// app ID, and other account details. The response contains sensitive information
     /// that should be handled securely.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Value)` - A JSON value containing the user's profile information
     /// * `Err(ApiError)` - An error if the request fails or the response cannot be parsed
-    /// 
+    ///
     /// # Security
     /// The response contains sensitive information including access keys and app IDs.
     /// Ensure proper handling and storage of this data.
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let user_info = client.get_users_me().await?;
@@ -824,19 +824,19 @@ impl LiumApiClient {
     }
 
     /// Retrieves the access key required for wallet operations.
-    /// 
+    ///
     /// This method extracts the access key from the user's profile information.
     /// The access key is required for various wallet-related operations, including
     /// adding new wallets and managing existing ones.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(String)` - The access key if successfully retrieved
     /// * `Err(ApiError)` - An error if the access key cannot be found or retrieved
-    /// 
+    ///
     /// # Security
     /// The access key is a sensitive credential that should be handled securely.
     /// Avoid logging or exposing this value.
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let access_key = client.get_access_key().await?;
@@ -856,15 +856,15 @@ impl LiumApiClient {
     }
 
     /// Retrieves the application ID required for wallet operations.
-    /// 
+    ///
     /// This method extracts the application ID from the user's profile information.
     /// The app ID is required for various wallet-related operations and serves as
     /// an identifier for the application making the requests.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(String)` - The application ID if successfully retrieved
     /// * `Err(ApiError)` - An error if the app ID cannot be found or retrieved
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let app_id = client.get_app_id().await?;
@@ -884,28 +884,28 @@ impl LiumApiClient {
     }
 
     /// Adds a wallet for funding operations to the user's account.
-    /// 
+    ///
     /// This method registers a new wallet that can be used for funding operations on the platform.
     /// It requires several pieces of information to verify ownership and establish the connection:
     /// - A coldkey in SS58 format for wallet identification
     /// - An access key for authentication
     /// - A signature to verify ownership
     /// - An application ID to associate the wallet with
-    /// 
+    ///
     /// # Arguments
     /// * `coldkey_ss58` - The SS58-encoded public key of the wallet to add
     /// * `access_key` - The access key for authentication
     /// * `signature_hex` - A hex-encoded signature proving ownership of the wallet
     /// * `app_id` - The application ID to associate with this wallet
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Value)` - The API response containing wallet details if successful
     /// * `Err(ApiError)` - An error if the request fails
-    /// 
+    ///
     /// # Security
     /// The access key and signature are sensitive credentials that should be handled securely.
     /// Avoid logging or exposing these values.
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let result = client.add_wallet(
@@ -939,16 +939,16 @@ impl LiumApiClient {
     }
 
     /// Tests the connection to the Celium Compute API.
-    /// 
+    ///
     /// This method performs a health check request to verify that the API is accessible
     /// and responding correctly. It's useful for validating configuration and network
     /// connectivity before attempting more complex operations.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(true)` - If the API is accessible and responding
     /// * `Ok(false)` - If the API is not accessible or not responding correctly
     /// * `Err(ApiError)` - If an unexpected error occurs during the check
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// if client.test_connection().await? {
@@ -972,19 +972,19 @@ impl LiumApiClient {
     }
 
     /// Executes a command in a specified pod.
-    /// 
+    ///
     /// This method sends a command to be executed in a pod and returns its output.
     /// The command execution is asynchronous and the response includes the command's
     /// output or any error messages that occurred during execution.
-    /// 
+    ///
     /// # Arguments
     /// * `request` - A JSON value containing the command execution details
     ///              (e.g., pod ID, command to execute, timeout settings)
-    /// 
+    ///
     /// # Returns
     /// * `Ok(String)` - The command output if successful
     /// * `Err(ApiError)` - An error if the command execution fails
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let request = serde_json::json!({

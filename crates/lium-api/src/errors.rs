@@ -1,10 +1,10 @@
 use thiserror::Error;
 
 /// API-specific errors for the Lium API client.
-/// 
+///
 /// This enum represents all possible error types that can occur when interacting with the Lium API.
 /// It includes HTTP errors, core domain errors, utility errors, and various other error types.
-/// 
+///
 /// # Variants
 /// * `Http` - Errors related to HTTP communication, wrapped from HttpError
 /// * `Core` - Errors from the core domain logic, wrapped from lium_core::LiumError
@@ -12,7 +12,7 @@ use thiserror::Error;
 /// * `Request` - Errors from HTTP requests, wrapped from reqwest::Error
 /// * `Json` - Errors related to JSON serialization/deserialization
 /// * `Config` - Configuration-related errors with a descriptive message
-/// 
+///
 /// # Examples
 /// ```rust
 /// match result {
@@ -44,11 +44,11 @@ pub enum ApiError {
 }
 
 /// HTTP-specific errors that can occur during API communication.
-/// 
+///
 /// This enum represents various HTTP-related errors that can occur when making requests
 /// to the Lium API. It includes authentication errors, rate limiting, service availability,
 /// and general HTTP errors.
-/// 
+///
 /// # Variants
 /// * `AuthenticationFailed` - When authentication credentials are invalid
 /// * `InvalidApiKey` - When the provided API key is invalid
@@ -58,7 +58,7 @@ pub enum ApiError {
 /// * `HttpError` - General HTTP errors with status code and message
 /// * `Request` - Errors from the reqwest HTTP client
 /// * `Config` - Configuration-related errors with a descriptive message
-/// 
+///
 /// # Examples
 /// ```rust
 /// match http_result {
@@ -96,11 +96,11 @@ pub enum HttpError {
 }
 
 /// Type alias for Result that uses ApiError as the error type.
-/// 
+///
 /// This is a convenience type alias that makes it easier to work with Results
 /// throughout the codebase. It uses ApiError as the error type, which provides
 /// a unified error handling approach.
-/// 
+///
 /// # Examples
 /// ```rust
 /// fn some_function() -> Result<String> {

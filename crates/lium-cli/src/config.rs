@@ -528,20 +528,20 @@ impl Config {
 }
 
 /// Loads the configuration from the default location.
-/// 
+///
 /// This function attempts to load the configuration from the default location
 /// (~/.lium/config.toml). If the configuration file doesn't exist, it will be
 /// created with default values. If an old JSON configuration exists, it will be
 /// automatically migrated to the new TOML format.
-/// 
+///
 /// # Returns
 /// * `Result<Config>` - The loaded configuration or an error
-/// 
+///
 /// # Errors
 /// * `ConfigError::DirectoryCreationFailed` - If the config directory cannot be created
 /// * `ConfigError::TomlError` - If the TOML file is invalid
 /// * `CliError::Io` - If there are file system errors
-/// 
+///
 /// # Examples
 /// ```rust
 /// let config = load_config()?;
@@ -552,21 +552,21 @@ pub fn load_config() -> Result<Config> {
 }
 
 /// Loads the configuration asynchronously.
-/// 
+///
 /// This is an async version of `load_config()` that uses `spawn_blocking` to
 /// perform the file I/O operations in a separate thread. This is useful when
 /// you need to load configuration in an async context without blocking the
 /// async runtime.
-/// 
+///
 /// # Returns
 /// * `Result<Config>` - The loaded configuration or an error
-/// 
+///
 /// # Errors
 /// * `CliError::InvalidInput` - If the config loading task fails
 /// * `ConfigError::DirectoryCreationFailed` - If the config directory cannot be created
 /// * `ConfigError::TomlError` - If the TOML file is invalid
 /// * `CliError::Io` - If there are file system errors
-/// 
+///
 /// # Examples
 /// ```rust
 /// let config = load_config_async().await?;
@@ -580,17 +580,17 @@ pub async fn load_config_async() -> Result<Config> {
 }
 
 /// Gets the path to the configuration directory.
-/// 
+///
 /// This function returns the path to the configuration directory, which is
 /// typically located at `~/.lium/`. The directory will be created if it
 /// doesn't exist.
-/// 
+///
 /// # Returns
 /// * `Result<PathBuf>` - The path to the configuration directory or an error
-/// 
+///
 /// # Errors
 /// * `ConfigError::DirectoryCreationFailed` - If the home directory cannot be found
-/// 
+///
 /// # Examples
 /// ```rust
 /// let config_dir = get_config_dir()?;
@@ -605,19 +605,19 @@ fn get_config_dir() -> Result<PathBuf> {
 }
 
 /// Expands a path string, handling home directory and environment variables.
-/// 
+///
 /// This function expands path strings that start with `~` to the user's home
 /// directory. It also handles environment variables in the path.
-/// 
+///
 /// # Arguments
 /// * `path` - The path string to expand
-/// 
+///
 /// # Returns
 /// * `Result<PathBuf>` - The expanded path or an error
-/// 
+///
 /// # Errors
 /// * `ConfigError::InvalidValue` - If the home directory cannot be found
-/// 
+///
 /// # Examples
 /// ```rust
 /// let expanded = expand_path("~/config.toml")?;
@@ -638,29 +638,29 @@ fn expand_path(path: &str) -> Result<PathBuf> {
 }
 
 /// Migrates configuration from the old JSON format to the new TOML format.
-/// 
+///
 /// This function reads the old JSON configuration file, converts it to the new
 /// TOML format, and saves it to the new location. The old JSON file is backed
 /// up with a `.backup` extension.
-/// 
+///
 /// The migration process handles the following configuration sections:
 /// * API settings (api_key)
 /// * SSH settings (public_key_path, user)
 /// * Template settings (default_id)
 /// * Docker settings (username, token)
-/// 
+///
 /// # Arguments
 /// * `json_path` - Path to the old JSON configuration file
 /// * `toml_path` - Path where the new TOML configuration will be saved
-/// 
+///
 /// # Returns
 /// * `Result<()>` - Success or error
-/// 
+///
 /// # Errors
 /// * `CliError::Io` - If there are file system errors
 /// * `CliError::Serde` - If the JSON file is invalid
 /// * `ConfigError::TomlError` - If the TOML serialization fails
-/// 
+///
 /// # Examples
 /// ```rust
 /// migrate_from_json(

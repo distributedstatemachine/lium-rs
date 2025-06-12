@@ -1,7 +1,53 @@
 use crate::config::Config;
 use crate::Result;
 
-/// Handle fund command with different actions
+/// Handles the `fund` command for wallet and funding management operations.
+///
+/// This function serves as the main dispatcher for funding-related operations including
+/// wallet balance checking, fund addition, and transaction history. It integrates with
+/// the Bittensor blockchain for TAO (native token) transactions and wallet management.
+///
+/// # Arguments
+/// * `action` - The specific funding action to perform (balance, add, history)
+/// * `config` - User configuration containing API credentials and settings
+///
+/// # Returns
+/// * `Result<()>` - Success or error with detailed operation information
+///
+/// # Supported Operations
+/// - **Balance**: Check current wallet balance and funding status
+/// - **Add**: Add funds to the user's Lium account (requires Bittensor integration)
+/// - **History**: View funding transaction history and usage details
+///
+/// # Integration Status
+/// **Note**: The funding system is currently in development and requires full Bittensor
+/// SDK integration for blockchain operations. Some features are placeholder implementations
+/// that guide users to alternative funding methods.
+///
+/// # Examples
+/// ```rust
+/// use lium_cli::commands::fund::handle;
+/// use lium_cli::{FundCommands, config::Config};
+///
+/// let config = Config::new()?;
+///
+/// // Check wallet balance
+/// handle(FundCommands::Balance, &config).await?;
+///
+/// // Add 10 TAO to account
+/// handle(FundCommands::Add { amount: 10.0 }, &config).await?;
+///
+/// // View transaction history
+/// handle(FundCommands::History, &config).await?;
+/// ```
+///
+/// # TODO
+/// - Complete Bittensor Rust SDK integration
+/// - Implement digital signature generation for transactions
+/// - Add wallet private key management
+/// - Support for multiple wallet types and providers
+/// - Add transaction fee estimation
+/// - Implement funding alerts and notifications
 pub async fn handle(action: crate::FundCommands, config: &Config) -> Result<()> {
     match action {
         crate::FundCommands::Balance => handle_balance(config).await,
@@ -10,7 +56,51 @@ pub async fn handle(action: crate::FundCommands, config: &Config) -> Result<()> 
     }
 }
 
-/// Handle fund balance command
+/// Handles the fund balance command to display current wallet information.
+///
+/// Retrieves and displays funding wallet information from the Lium API, including
+/// wallet addresses, balances, and funding status. This provides users with a
+/// comprehensive view of their account's financial state.
+///
+/// # Arguments
+/// * `config` - User configuration containing API credentials
+///
+/// # Returns
+/// * `Result<()>` - Success or error with balance retrieval information
+///
+/// # Process Flow
+/// 1. **API Connection**: Creates authenticated client for wallet operations
+/// 2. **Wallet Retrieval**: Fetches funding wallet data from API
+/// 3. **Data Parsing**: Processes wallet information and metadata
+/// 4. **Display**: Shows formatted wallet information and balances
+/// 5. **Error Handling**: Provides guidance for wallet setup if needed
+///
+/// # Output Format
+/// ```text
+/// 💰 Fetching wallet balance...
+/// 📊 Funding Wallets:
+///   1. Wallet:
+///      address: 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
+///      balance: 125.500 TAO
+///      status: active
+///      
+///   2. Wallet:
+///      address: 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
+///      balance: 0.000 TAO
+///      status: pending
+/// ```
+///
+/// # Error Conditions
+/// - API connection failures
+/// - Authentication errors (invalid API key)
+/// - No wallets configured for the account
+/// - Wallet data parsing errors
+///
+/// # TODO
+/// - Add real-time balance updates
+/// - Support for multiple cryptocurrency types
+/// - Add balance history and trends
+/// - Implement spending analytics
 async fn handle_balance(config: &Config) -> Result<()> {
     let api_client = lium_api::LiumApiClient::from_config(config)?;
 

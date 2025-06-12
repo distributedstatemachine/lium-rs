@@ -14,25 +14,231 @@ use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
+/// Command-line arguments for the `exec` command that executes commands on remote pods.
+///
+/// The `exec` command enables remote command execution on cloud GPU pods via SSH.
+/// It supports both interactive commands and script execution, with environment
+/// variable injection and output streaming capabilities.
+///
+/// # Examples
+/// ```bash
+/// # Execute a simple command
+/// lium exec 1 "nvidia-smi"
+/// lium exec my-pod "python train.py"
+///
+/// # Execute commands on multiple pods
+/// lium exec 1,2,3 "pip install torch"
+/// lium exec all "nvidia-smi"
+///
+/// # Execute a script file
+/// lium exec 1 --script setup.sh
+///
+/// # Set environment variables
+/// lium exec 1 --env DEBUG=1 --env API_KEY=secret "python app.py"
+///
+/// # Use double dash for commands with flags
+/// lium exec 1 -- python train.py --epochs 100 --lr 0.001
+/// ```
+///
+/// # Pod Target Resolution
+/// Pod targets can be specified in several formats:
+/// - **Pod indices**: Numeric references from `lium ps` (e.g., "1", "3")
+/// - **Pod HUIDs**: Hardware unique identifiers (e.g., "exec-abc123")
+/// - **Pod names**: User-defined or auto-generated names
+/// - **Comma-separated**: Multiple targets (e.g., "1,2,3")
+/// - **"all"**: Execute on all active pods
+///
+/// # Security Considerations
+/// - Commands are executed via SSH with configured private keys
+/// - Environment variables are exported before command execution
+/// - Output streaming prevents command hanging
+/// - SSH host key checking is disabled for cloud environments
+///
+/// # TODO
+/// - Add support for interactive TTY sessions
+/// - Implement command timeout configuration
+/// - Add support for file upload before execution
+/// - Support for parallel vs sequential execution modes
 #[derive(Args)]
 pub struct ExecArgs {
-    /// Pod targets (comma-separated HUIDs, indices, or "all")
+    /// Pod targets to execute commands on (comma-separated).
+    ///
+    /// Specifies which pods should receive the command execution. Supports:
+    ///
+    /// - **Single target**: "1", "my-pod", "exec-abc123"
+    /// - **Multiple targets**: "1,2,3", "pod1,pod2", "exec-abc123,exec-def456"
+    /// - **All pods**: "all" (executes on all active pods)
+    ///
+    /// Targets are resolved using the same logic as other commands:
+    /// - Numeric values are treated as indices from `lium ps`
+    /// - Non-numeric values are matched against pod HUIDs and names
+    /// - Invalid targets cause the command to fail with an error
     pub pod_targets: String,
 
-    /// Command to execute (use -- before the command if it contains flags)
+    /// Command to execute on the target pods.
+    ///
+    /// The command string is executed in the default shell of the pod (usually bash).
+    /// Use the `raw = true` attribute to support complex command parsing including
+    /// flags that might conflict with lium's own arguments.
+    ///
+    /// For commands with flags or complex arguments, use `--` to separate lium
+    /// arguments from the command:
+    /// ```bash
+    /// lium exec 1 -- python train.py --epochs 100 --learning-rate 0.001
+    /// ```
+    ///
+    /// Commands are executed with the configured SSH user (typically root) and
+    /// inherit the pod's environment variables plus any specified via `--env`.
     #[arg(raw = true)]
     pub command: Vec<String>,
 
-    /// Path to a script file to execute
+    /// Path to a script file to execute instead of a command.
+    ///
+    /// When specified, the script file is read from the local filesystem and
+    /// executed on the remote pod(s). The script is executed as a single command
+    /// with environment variables (if any) exported beforehand.
+    ///
+    /// Script execution process:
+    /// 1. Read script content from local file
+    /// 2. Prepend environment variable exports (if any)
+    /// 3. Execute the combined script on each target pod
+    ///
+    /// Supports common script types: `.sh`, `.py`, `.pl`, etc.
+    /// The remote pod must have appropriate interpreters installed.
+    ///
+    /// Example: `--script deploy.sh`, `--script install_deps.py`
     #[arg(short, long, conflicts_with = "command")]
     pub script: Option<String>,
 
-    /// Environment variables (KEY=VALUE format, can be used multiple times)
+    /// Environment variables to set before command execution.
+    ///
+    /// Variables are exported in the pod's shell environment before the command
+    /// or script is executed. Can be specified multiple times for multiple variables.
+    ///
+    /// Format: `KEY=VALUE`
+    ///
+    /// Examples:
+    /// - `--env DEBUG=1`
+    /// - `--env API_KEY=secret --env WORKERS=4`
+    /// - `--env CUDA_VISIBLE_DEVICES=0,1`
+    ///
+    /// Variables are exported using `export KEY="VALUE"` syntax, with proper
+    /// shell escaping to handle special characters in values.
     #[arg(short, long)]
     pub env: Vec<String>,
 }
 
 /// Handle the exec command for remote command execution
+/// Handles the `exec` command to execute commands or scripts on remote pods via SSH.
+///
+/// This function orchestrates remote command execution across one or more cloud GPU pods.
+/// It handles SSH connection management, output streaming, environment variable injection,
+/// and provides comprehensive error reporting for debugging connection and execution issues.
+///
+/// # Arguments
+/// * `args` - Command-line arguments parsed into `ExecArgs` struct
+/// * `config` - User configuration containing SSH keys and API credentials
+///
+/// # Returns
+/// * `Result<()>` - Success or error with detailed execution information
+///
+/// # Process Flow
+/// 1. **Input Validation**: Validates pod targets and command/script parameters
+/// 2. **Target Resolution**: Resolves pod targets to actual pod instances
+/// 3. **SSH Configuration**: Validates SSH key availability and configuration
+/// 4. **Command Preparation**: Processes commands, scripts, and environment variables
+/// 5. **Execution Loop**: Executes commands on each target pod sequentially
+/// 6. **Output Streaming**: Streams stdout/stderr in real-time with proper labeling
+/// 7. **Result Summary**: Reports success/failure counts for multiple pod operations
+///
+/// # Command vs Script Execution
+///
+/// ## Command Mode
+/// When `command` is provided, the arguments are joined into a single command string
+/// and executed directly in the pod's shell. Environment variables are prepended
+/// as export statements.
+///
+/// ## Script Mode  
+/// When `--script` is provided, the local script file is read and its contents
+/// are executed remotely. Environment variables are automatically prepended to
+/// the script content before execution.
+///
+/// # Environment Variable Handling
+/// Environment variables are processed as follows:
+/// 1. Parse each `--env KEY=VALUE` argument
+/// 2. Validate format and escape special characters
+/// 3. Generate `export KEY="VALUE"` statements
+/// 4. Prepend to command or script content
+/// 5. Execute combined command string
+///
+/// # SSH Connection Management
+/// - Uses configured private key from user settings
+/// - Disables host key checking for cloud environments
+/// - Supports custom ports from pod SSH commands
+/// - Implements connection retry logic for transient failures
+/// - Provides detailed debugging for connection issues
+///
+/// # Output Handling
+/// For single pod execution:
+/// - Streams output directly to stdout/stderr
+/// - Maintains real-time feedback
+///
+/// For multiple pod execution:
+/// - Labels output with pod identifiers
+/// - Separates output between pods
+/// - Provides execution summary
+///
+/// # Error Conditions
+/// - Invalid pod targets (non-existent or inaccessible pods)
+/// - SSH configuration issues (missing keys, connection failures)
+/// - Script file not found or unreadable
+/// - Command execution failures on remote pods
+/// - Network connectivity problems
+///
+/// # Examples
+/// ```rust
+/// use lium_cli::commands::exec::{handle, ExecArgs};
+/// use lium_cli::config::Config;
+///
+/// // Execute simple command on single pod
+/// let args = ExecArgs {
+///     pod_targets: "1".to_string(),
+///     command: vec!["nvidia-smi".to_string()],
+///     script: None,
+///     env: vec![],
+/// };
+/// handle(args, &config).await?;
+///
+/// // Execute script with environment variables on multiple pods
+/// let args = ExecArgs {
+///     pod_targets: "1,2,3".to_string(),
+///     command: vec![],
+///     script: Some("setup.sh".to_string()),
+///     env: vec!["DEBUG=1".to_string(), "WORKERS=4".to_string()],
+/// };
+/// handle(args, &config).await?;
+/// ```
+///
+/// # Security Considerations
+/// - SSH connections use configured private keys only
+/// - Host key verification is disabled for cloud pod environments
+/// - Environment variables are properly shell-escaped
+/// - Command execution is logged for audit purposes
+/// - No sensitive information is logged in debug output
+///
+/// # Performance Considerations
+/// - Commands are executed sequentially across pods (not parallel)
+/// - Output streaming prevents memory buildup for long-running commands
+/// - SSH connections are created per-pod (no connection pooling)
+/// - Large script files are efficiently streamed to remote pods
+///
+/// # TODO
+/// - Add support for parallel execution across multiple pods
+/// - Implement command timeout configuration
+/// - Add support for interactive TTY sessions
+/// - Support for file upload/download before/after execution
+/// - Add execution history and result caching
+/// - Implement connection pooling for better performance
 pub async fn handle(args: ExecArgs, config: &Config) -> Result<()> {
     let api_client = LiumApiClient::from_config(config)?;
 

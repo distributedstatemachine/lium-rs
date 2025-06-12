@@ -2,7 +2,94 @@ use crate::{config::Config, helpers::resolve_pod_targets, CliError, Result};
 use dialoguer::Confirm;
 use lium_api::LiumApiClient;
 
-/// Handle the down command for stopping pods
+/// Handles the `down` command to stop and terminate running pods.
+///
+/// This function manages the complete lifecycle of pod termination, including target
+/// resolution, user confirmation, and graceful shutdown. It supports both individual
+/// pod termination and bulk operations.
+///
+/// # Arguments
+/// * `pods` - Vector of pod targets (HUIDs, indices, or names) to stop
+/// * `all` - Boolean flag to stop all active pods regardless of the pods parameter
+/// * `yes` - Boolean flag to skip interactive confirmation prompts
+/// * `config` - User configuration containing API credentials and settings
+///
+/// # Returns
+/// * `Result<()>` - Success or error with detailed information about failures
+///
+/// # Pod Target Resolution
+/// The function supports multiple ways to specify which pods to stop:
+/// - **Pod HUIDs**: Direct hardware unique identifiers (e.g., "exec-abc123")
+/// - **Pod indices**: Numeric references from `lium ps` output (e.g., "1", "3")
+/// - **Pod names**: User-defined or auto-generated names (e.g., "my-training-pod")
+/// - **All pods**: Use `--all` flag to stop all active pods
+///
+/// # Process Flow
+/// 1. **Input Validation**: Ensures valid targets are provided
+/// 2. **Target Resolution**: Converts pod targets to actual pod references
+/// 3. **Status Check**: Verifies pods exist and are in a stoppable state
+/// 4. **Confirmation**: Shows affected pods and requests user confirmation (unless `--yes`)
+/// 5. **Termination**: Calls unrent_pod API for each target pod
+/// 6. **Results**: Reports success/failure counts and details
+///
+/// # Error Conditions
+/// - No pod targets specified and `--all` not used
+/// - Invalid pod targets (non-existent HUIDs, indices, or names)
+/// - Network errors during API calls
+/// - Pods already stopped or in non-stoppable states
+/// - Permission errors (API key issues)
+///
+/// # Safety Considerations
+/// - **Confirmation Required**: Interactive confirmation prevents accidental termination
+/// - **Graceful Shutdown**: Pods are terminated gracefully when possible
+/// - **State Validation**: Only attempts to stop pods that are actually running
+/// - **Retry Logic**: Built-in retry for transient network failures
+///
+/// # Examples
+/// ```rust
+/// use lium_cli::commands::down::handle;
+/// use lium_cli::config::Config;
+///
+/// let config = Config::new()?;
+///
+/// // Stop specific pods
+/// handle(
+///     vec!["1".to_string(), "3".to_string()],
+///     false,
+///     false,
+///     &config
+/// ).await?;
+///
+/// // Stop all pods without confirmation
+/// handle(
+///     vec![],
+///     true,
+///     true,
+///     &config
+/// ).await?;
+/// ```
+///
+/// # Output Format
+/// The function provides detailed feedback including:
+/// ```text
+/// 📋 Pods to stop:
+///   1. exec-abc123 (my-pod) - Status: running
+///   2. exec-def456 (training-job) - Status: starting
+///
+/// 🛑 Stopping 2 pod(s)...
+/// 🛑 Stopping pod my-pod (exec-abc123)... ✅ Success
+/// 🛑 Stopping pod training-job (exec-def456)... ✅ Success
+///
+/// 🏁 Stop operation complete:
+///   ✅ Successfully stopped: 2
+/// ```
+///
+/// # TODO
+/// - Add support for graceful shutdown timeouts
+/// - Implement pod dependency checking before termination
+/// - Add cost tracking for stopped pods
+/// - Support for scheduled pod termination
+/// - Add backup/snapshot creation before termination
 pub async fn handle(pods: Vec<String>, all: bool, yes: bool, config: &Config) -> Result<()> {
     let api_client = LiumApiClient::from_config(config)?;
 

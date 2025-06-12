@@ -5,16 +5,16 @@ use lium_core::{ExecutorInfo, PodInfo, TemplateInfo};
 use std::collections::HashMap;
 
 /// A utility struct for formatting and displaying tabular data in the terminal.
-/// 
+///
 /// The Table struct provides functionality to create, populate, and display
 /// formatted tables with borders, headers, and rows. It automatically handles
 /// column width calculations and alignment.
-/// 
+///
 /// # Fields
 /// * `headers` - Vector of column header strings
 /// * `rows` - Vector of row data, where each row is a vector of cell strings
 /// * `max_widths` - Vector tracking the maximum width needed for each column
-/// 
+///
 /// # Examples
 /// ```rust
 /// let mut table = Table::new(vec!["Name".to_string(), "Age".to_string()]);
@@ -29,16 +29,16 @@ pub struct Table {
 
 impl Table {
     /// Creates a new Table instance with the specified headers.
-    /// 
+    ///
     /// Initializes the table with the given headers and calculates initial
     /// column widths based on header lengths.
-    /// 
+    ///
     /// # Arguments
     /// * `headers` - Vector of strings representing column headers
-    /// 
+    ///
     /// # Returns
     /// * `Table` - A new Table instance
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let table = Table::new(vec!["Name".to_string(), "Age".to_string()]);
@@ -53,18 +53,18 @@ impl Table {
     }
 
     /// Adds a new row to the table and updates column widths if necessary.
-    /// 
+    ///
     /// This method adds a row of data to the table and automatically adjusts
     /// column widths if the new row contains cells wider than the current
     /// maximum widths.
-    /// 
+    ///
     /// # Arguments
     /// * `row` - Vector of strings representing the row data
-    /// 
+    ///
     /// # Panics
     /// This method will not panic if the row has fewer columns than headers,
     /// but will ignore any extra columns beyond the number of headers.
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let mut table = Table::new(vec!["Name".to_string(), "Age".to_string()]);
@@ -81,17 +81,17 @@ impl Table {
     }
 
     /// Prints the complete table to stdout with borders and formatting.
-    /// 
+    ///
     /// This method displays the table with:
     /// - A top border
     /// - Formatted headers
     /// - A separator line
     /// - All data rows
     /// - A bottom border
-    /// 
+    ///
     /// The output is formatted with proper spacing and alignment based on
     /// the calculated column widths.
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let mut table = Table::new(vec!["Name".to_string(), "Age".to_string()]);
@@ -111,13 +111,13 @@ impl Table {
     }
 
     /// Prints the top border of the table using box-drawing characters.
-    /// 
+    ///
     /// This method creates a border that looks like:
     /// ┌────┬────┬────┐
-    /// 
+    ///
     /// The width of each segment is determined by the maximum width of the
     /// corresponding column plus 2 spaces for padding.
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let table = Table::new(vec!["Name".to_string(), "Age".to_string()]);
@@ -135,13 +135,13 @@ impl Table {
     }
 
     /// Prints the middle border of the table using box-drawing characters.
-    /// 
+    ///
     /// This method creates a border that looks like:
     /// ├────┼────┼────┤
-    /// 
+    ///
     /// The width of each segment is determined by the maximum width of the
     /// corresponding column plus 2 spaces for padding.
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let table = Table::new(vec!["Name".to_string(), "Age".to_string()]);
@@ -159,13 +159,13 @@ impl Table {
     }
 
     /// Prints the bottom border of the table using box-drawing characters.
-    /// 
+    ///
     /// This method creates a border that looks like:
     /// └────┴────┴────┘
-    /// 
+    ///
     /// The width of each segment is determined by the maximum width of the
     /// corresponding column plus 2 spaces for padding.
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let table = Table::new(vec!["Name".to_string(), "Age".to_string()]);
@@ -183,13 +183,13 @@ impl Table {
     }
 
     /// Prints the header row of the table with bold formatting.
-    /// 
+    ///
     /// This method formats the header row with:
     /// - Bold text for each header
     /// - Left-aligned text within each column
     /// - Proper spacing based on column widths
     /// - Vertical borders between columns
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let table = Table::new(vec!["Name".to_string(), "Age".to_string()]);
@@ -205,16 +205,16 @@ impl Table {
     }
 
     /// Prints a data row of the table with proper formatting.
-    /// 
+    ///
     /// This method formats each row with:
     /// - Left-aligned text within each column
     /// - Proper spacing based on column widths
     /// - Vertical borders between columns
     /// - Handles rows with fewer columns than headers by using width 0
-    /// 
+    ///
     /// # Arguments
     /// * `row` - A slice of strings representing the row data
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let mut table = Table::new(vec!["Name".to_string(), "Age".to_string()]);
@@ -294,12 +294,10 @@ pub fn display_executors_table(executors: &[ExecutorInfo], show_pareto: bool) {
             .get("memory_gb")
             .or_else(|| executor.specs.get("ram_gb"))
             .or_else(|| executor.specs.get("memory"))
-            .and_then(|v| {
-                match v {
-                    serde_json::Value::Number(n) => n.as_f64().map(|f| format!("{:.0}", f)),
-                    serde_json::Value::String(s) => s.parse::<f64>().ok().map(|f| format!("{:.0}", f)),
-                    _ => None,
-                }
+            .and_then(|v| match v {
+                serde_json::Value::Number(n) => n.as_f64().map(|f| format!("{:.0}", f)),
+                serde_json::Value::String(s) => s.parse::<f64>().ok().map(|f| format!("{:.0}", f)),
+                _ => None,
             })
             .unwrap_or_else(|| "N/A".to_string());
 
@@ -668,7 +666,7 @@ fn extract_gpu_model(gpu_name: &str) -> &str {
     // TODO: Consider adding support for more GPU models
     // TODO: Consider case-insensitive matching
     // TODO: Consider adding memory size detection (e.g., "H100 80GB")
-    
+
     if gpu_name.contains("H100") {
         "H100"
     } else if gpu_name.contains("A100") {
@@ -727,7 +725,7 @@ pub fn display_pod_details(pod: &PodInfo) {
     // TODO: Consider adding more pod details (e.g., resource usage, logs)
     // TODO: Consider adding support for custom color themes
     // TODO: Consider adding support for different timezone displays
-    
+
     println!("{}", format!("Pod Details: {}", pod.name).bold().blue());
     println!("  {}: {}", "HUID".bold(), pod.huid);
 
@@ -802,7 +800,7 @@ pub fn display_templates_table(templates: &[TemplateInfo]) {
     // TODO: Consider adding more template details (e.g., creation date, usage stats)
     // TODO: Consider making the description length configurable
     // TODO: Consider adding sorting options
-    
+
     if templates.is_empty() {
         println!("{}", "No templates found.".yellow());
         return;
@@ -860,23 +858,23 @@ pub fn display_templates_table(templates: &[TemplateInfo]) {
 }
 
 /// Interactive command-line prompts for user input and feedback.
-/// 
+///
 /// This module provides a set of functions for handling interactive user input
 /// and displaying status messages in the terminal. It uses the `dialoguer` crate
 /// for interactive prompts and `colored` for styled output.
-/// 
+///
 /// # Examples
 /// ```rust
 /// // Confirm an action
 /// let confirmed = prompt_confirm("Delete this file?", false)?;
-/// 
+///
 /// // Select from a list
 /// let options = vec!["Option 1", "Option 2", "Option 3"];
 /// let selection = prompt_select("Choose an option:", &options)?;
-/// 
+///
 /// // Get user input
 /// let name = prompt_input("Enter your name:", Some("John"))?;
-/// 
+///
 /// // Display status messages
 /// print_success("Operation completed successfully");
 /// print_error("An error occurred");
@@ -885,17 +883,17 @@ pub fn display_templates_table(templates: &[TemplateInfo]) {
 /// ```
 
 /// Prompts the user for a yes/no confirmation with an optional default value.
-/// 
+///
 /// This function creates an interactive confirmation prompt using the dialoguer crate.
 /// It handles errors gracefully and returns a Result containing the user's choice.
-/// 
+///
 /// # Arguments
 /// * `message` - The prompt message to display to the user
 /// * `default` - The default value if the user just presses Enter
-/// 
+///
 /// # Returns
 /// * `Result<bool>` - Ok(true) if confirmed, Ok(false) if denied, Err if input fails
-/// 
+///
 /// # Examples
 /// ```rust
 /// let confirmed = prompt_confirm("Are you sure?", false)?;
@@ -914,18 +912,18 @@ pub fn prompt_confirm(message: &str, default: bool) -> Result<bool> {
 }
 
 /// Prompts the user to select an item from a list of options.
-/// 
+///
 /// This function creates an interactive selection prompt using the dialoguer crate.
 /// It converts all items to strings and allows the user to navigate and select
 /// using arrow keys and Enter.
-/// 
+///
 /// # Arguments
 /// * `message` - The prompt message to display to the user
 /// * `items` - A slice of items that can be converted to strings
-/// 
+///
 /// # Returns
 /// * `Result<usize>` - Ok(index) of the selected item, Err if input fails
-/// 
+///
 /// # Examples
 /// ```rust
 /// let options = vec!["Option 1", "Option 2", "Option 3"];
@@ -946,17 +944,17 @@ pub fn prompt_select<T: ToString>(message: &str, items: &[T]) -> Result<usize> {
 }
 
 /// Prompts the user for text input with an optional default value.
-/// 
+///
 /// This function creates an interactive text input prompt using the dialoguer crate.
 /// It supports an optional default value that will be used if the user just presses Enter.
-/// 
+///
 /// # Arguments
 /// * `message` - The prompt message to display to the user
 /// * `default` - Optional default value to use if the user just presses Enter
-/// 
+///
 /// # Returns
 /// * `Result<String>` - Ok(input) containing the user's input, Err if input fails
-/// 
+///
 /// # Examples
 /// ```rust
 /// let name = prompt_input("Enter your name:", Some("John"))?;
@@ -978,16 +976,16 @@ pub fn prompt_input(message: &str, default: Option<&str>) -> Result<String> {
 }
 
 /// Status message display functions for consistent user feedback.
-/// 
+///
 /// These functions provide a standardized way to display different types of status
 /// messages with appropriate colors and icons. They use the colored crate for
 /// terminal styling.
 
 /// Displays a success message with a green checkmark icon.
-/// 
+///
 /// # Arguments
 /// * `message` - The message to display
-/// 
+///
 /// # Examples
 /// ```rust
 /// print_success("Operation completed successfully");
@@ -997,10 +995,10 @@ pub fn print_success(message: &str) {
 }
 
 /// Displays an error message with a red X icon.
-/// 
+///
 /// # Arguments
 /// * `message` - The error message to display
-/// 
+///
 /// # Examples
 /// ```rust
 /// print_error("Failed to connect to server");
@@ -1010,10 +1008,10 @@ pub fn print_error(message: &str) {
 }
 
 /// Displays a warning message with a yellow warning icon.
-/// 
+///
 /// # Arguments
 /// * `message` - The warning message to display
-/// 
+///
 /// # Examples
 /// ```rust
 /// print_warning("This action cannot be undone");
@@ -1023,10 +1021,10 @@ pub fn print_warning(message: &str) {
 }
 
 /// Displays an informational message with a blue info icon.
-/// 
+///
 /// # Arguments
 /// * `message` - The informational message to display
-/// 
+///
 /// # Examples
 /// ```rust
 /// print_info("Processing your request");
@@ -1036,14 +1034,14 @@ pub fn print_info(message: &str) {
 }
 
 /// Displays a spinning progress indicator with a message.
-/// 
+///
 /// This function initiates a visual spinner animation to indicate ongoing operations.
 /// The spinner uses a blue "⠋" character that can be animated by subsequent calls.
 /// The message is displayed next to the spinner, followed by an ellipsis.
-/// 
+///
 /// # Arguments
 /// * `message` - The message to display alongside the spinner
-/// 
+///
 /// # Examples
 /// ```rust
 /// print_spinner_start("Loading data");
@@ -1056,11 +1054,11 @@ pub fn print_spinner_start(message: &str) {
 }
 
 /// Stops the spinner animation and displays a completion message.
-/// 
+///
 /// This function completes the spinner animation by printing a newline
 /// and a green "Done" message. It should be called after the operation
 /// that was being monitored is complete.
-/// 
+///
 /// # Examples
 /// ```rust
 /// print_spinner_start("Loading data");
@@ -1072,7 +1070,7 @@ pub fn print_spinner_stop() {
 }
 
 /// Displays a compact overview of executor information.
-/// 
+///
 /// This function presents a concise, single-line summary for each executor,
 /// including:
 /// - Availability status (🟢 for available, 🔴 for rented)
@@ -1080,12 +1078,12 @@ pub fn print_spinner_stop() {
 /// - GPU type and count
 /// - Price per GPU per hour
 /// - Geographic region
-/// 
+///
 /// The output is formatted for quick scanning and comparison of multiple executors.
-/// 
+///
 /// # Arguments
 /// * `executors` - A slice of `ExecutorInfo` structs to display
-/// 
+///
 /// # Examples
 /// ```rust
 /// let executors = vec![ExecutorInfo::default()];
@@ -1118,7 +1116,7 @@ pub fn display_executors_compact(executors: &[ExecutorInfo]) {
 }
 
 /// Displays detailed information about each executor in a structured format.
-/// 
+///
 /// This function presents comprehensive information about each executor in a
 /// hierarchical, easy-to-read format. For each executor, it shows:
 /// - Index number and HUID
@@ -1127,13 +1125,13 @@ pub fn display_executors_compact(executors: &[ExecutorInfo]) {
 /// - Availability status (color-coded)
 /// - Location information (if available)
 /// - Technical specifications (if available)
-/// 
+///
 /// The output is formatted with proper indentation and color coding for
 /// better readability and quick status assessment.
-/// 
+///
 /// # Arguments
 /// * `executors` - A slice of `ExecutorInfo` structs to display
-/// 
+///
 /// # Examples
 /// ```rust
 /// let executors = vec![ExecutorInfo::default()];

@@ -4,7 +4,136 @@ use log::debug;
 use std::path::Path;
 use tokio::time::{timeout, Duration};
 
-/// Handle the init command for first-time setup
+/// Handles the `init` command for first-time Lium CLI setup and configuration.
+///
+/// This function provides an interactive setup wizard that guides users through
+/// the initial configuration of the Lium CLI, including API key setup, SSH key
+/// configuration, and connection validation. It's designed to be user-friendly
+/// and handle common setup scenarios automatically.
+///
+/// # Returns
+/// * `Result<()>` - Success or error with detailed setup failure information
+///
+/// # Setup Process
+/// 1. **Welcome**: Displays setup introduction and purpose
+/// 2. **API Key Configuration**: Prompts for or validates existing API key
+/// 3. **SSH Key Setup**: Configures SSH public key for pod access
+/// 4. **User Configuration**: Sets default SSH user (typically root)
+/// 5. **Configuration Save**: Persists settings to TOML configuration file
+/// 6. **API Validation**: Tests API connection with provided credentials
+/// 7. **SSH Validation**: Validates SSH key format and accessibility
+/// 8. **Completion**: Displays success message and next steps
+///
+/// # Interactive Workflow
+/// The setup wizard uses interactive prompts to gather information:
+/// - **Confirmation dialogs**: For using existing vs. new configuration
+/// - **Secure input**: Password-style input for API keys
+/// - **File path input**: With intelligent defaults and validation
+/// - **Automatic detection**: Finds common SSH key locations
+///
+/// # API Key Configuration
+/// The function handles API keys through multiple sources:
+/// - **Environment variable**: `LIUM_API_KEY` (checked first)
+/// - **Existing configuration**: Previously saved API key
+/// - **User input**: Secure prompt for new API key entry
+/// - **Validation**: Tests API connectivity before saving
+///
+/// The API key setup process:
+/// 1. Check for existing configuration
+/// 2. Offer to reuse or replace existing key
+/// 3. Prompt for new key with secure input
+/// 4. Validate key format and non-empty requirement
+/// 5. Test API connection before final save
+///
+/// # SSH Key Configuration
+/// SSH key setup is intelligent and user-friendly:
+/// - **Auto-detection**: Scans common SSH key locations
+/// - **Path validation**: Ensures keys exist and are readable
+/// - **Format validation**: Validates SSH public key format
+/// - **Key generation guidance**: Provides commands for creating new keys
+/// - **Flexible options**: Supports existing keys or guided creation
+///
+/// SSH key locations checked (in order):
+/// 1. `~/.ssh/id_rsa.pub` (RSA keys)
+/// 2. `~/.ssh/id_ed25519.pub` (Ed25519 keys, recommended)
+/// 3. `~/.ssh/id_ecdsa.pub` (ECDSA keys)
+/// 4. `~/.ssh/tplr.pub` (Custom key name)
+///
+/// # Configuration Persistence
+/// Settings are saved to `~/.lium/config.toml` using TOML format:
+/// ```toml
+/// [api]
+/// api_key = "your-api-key-here"
+/// base_url = "https://api.lium.ai"  # optional
+///
+/// [ssh]
+/// key_path = "~/.ssh/id_ed25519.pub"
+/// user = "root"
+/// ```
+///
+/// # Validation and Testing
+/// The setup process includes comprehensive validation:
+/// - **API Connection**: 10-second timeout test with error reporting
+/// - **SSH Key Format**: Validates public key format and content
+/// - **File Accessibility**: Ensures configuration files are writable
+/// - **Path Resolution**: Expands tildes and validates file existence
+///
+/// # Error Handling
+/// Common setup issues and their handling:
+/// - **Missing SSH keys**: Provides guidance for key generation
+/// - **Invalid API keys**: Clear error messages with suggested solutions
+/// - **Permission issues**: Guidance on file permissions and locations
+/// - **Network problems**: Timeout handling and retry suggestions
+/// - **Configuration conflicts**: Safe handling of existing configurations
+///
+/// # Examples
+/// ```rust
+/// use lium_cli::commands::init::handle;
+///
+/// // Run interactive setup
+/// handle().await?;
+/// ```
+///
+/// # Setup Output
+/// ```text
+/// 🍄 Lium initialization
+/// Setting up your Lium configuration...
+///
+/// Please enter your Lium API key.
+/// You can get your API key from: https://celiumcompute.ai/api-keys
+/// API Key: [hidden input]
+///
+/// Please enter the path to your SSH public key.
+/// This is typically ~/.ssh/id_rsa.pub or ~/.ssh/id_ed25519.pub
+/// Found SSH key at ~/.ssh/id_ed25519.pub. Use this key? Yes
+///
+/// 💾 Saving configuration...
+/// 🔍 Testing API connection...
+/// ✅ API connection successful!
+/// 🔑 Validating SSH key...
+/// ✅ SSH key is valid!
+///
+/// ✅ Lium initialization complete!
+/// Configuration saved to: ~/.lium/config.toml
+///
+/// You can now use 'lium ls' to see available executors.
+/// ```
+///
+/// # Recovery and Troubleshooting
+/// If setup fails, users can:
+/// - Re-run `lium init` to restart the process
+/// - Use `lium config show` to check current configuration
+/// - Manually edit `~/.lium/config.toml` if needed
+/// - Check API key validity at the provider's website
+/// - Generate new SSH keys if validation fails
+///
+/// # TODO
+/// - Add support for custom configuration file locations
+/// - Implement configuration migration from other tools
+/// - Add support for multiple API environments (staging, production)
+/// - Support for SSH agent integration during setup
+/// - Add configuration validation and repair utilities
+/// - Implement guided troubleshooting for common issues
 pub async fn handle() -> Result<()> {
     println!("🍄 Lium initialization");
     println!("Setting up your Lium configuration...\n");

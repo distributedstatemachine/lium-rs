@@ -3,15 +3,15 @@ use crate::errors::{ApiError, Result};
 use lium_core::{ExecutorInfo, PodInfo, TemplateInfo};
 
 /// Main SDK struct for Lium
-/// 
+///
 /// This struct provides a high-level interface for interacting with the Lium platform.
 /// It encapsulates all the functionality needed to manage executors, pods, templates,
 /// and other platform resources.
-/// 
+///
 /// # Examples
 /// ```rust
 /// use lium_api::Lium;
-/// 
+///
 /// #[tokio::main]
 /// async fn main() -> Result<(), ApiError> {
 ///     // Create a new Lium instance
@@ -38,13 +38,13 @@ pub struct Lium {
 
 impl Lium {
     /// Creates a new Lium instance with the provided API key.
-    /// 
+    ///
     /// # Arguments
     /// * `api_key` - The API key to use for authentication
-    /// 
+    ///
     /// # Returns
     /// A new `Lium` instance configured with the provided API key
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let lium = Lium::new("your-api-key".to_string());
@@ -55,11 +55,11 @@ impl Lium {
     }
 
     /// Creates a new Lium instance using the API key from the `LIUM_API_KEY` environment variable.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Lium)` - A new `Lium` instance if the environment variable is set
     /// * `Err(ApiError)` - An error if the environment variable is not set
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let lium = Lium::from_env()?;
@@ -72,19 +72,19 @@ impl Lium {
     }
 
     /// Lists all available executors, optionally filtered by GPU type.
-    /// 
+    ///
     /// # Arguments
     /// * `gpu_type` - Optional GPU type to filter executors by (e.g., "a100", "v100")
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Vec<ExecutorInfo>)` - A list of available executors
     /// * `Err(ApiError)` - An error if the request fails
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// // List all executors
     /// let all_executors = lium.list_executors(None).await?;
-    /// 
+    ///
     /// // List only A100 executors
     /// let a100_executors = lium.list_executors(Some("a100".to_string())).await?;
     /// ```
@@ -99,11 +99,11 @@ impl Lium {
     }
 
     /// Lists all active pods associated with the user's account.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Vec<PodInfo>)` - A list of active pods
     /// * `Err(ApiError)` - An error if the request fails
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let pods = lium.list_pods().await?;
@@ -116,11 +116,11 @@ impl Lium {
     }
 
     /// Retrieves all available pod templates.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Vec<TemplateInfo>)` - A list of available templates
     /// * `Err(ApiError)` - An error if the request fails
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let templates = lium.get_templates().await?;
@@ -133,17 +133,17 @@ impl Lium {
     }
 
     /// Starts a new pod on the specified executor using the given template.
-    /// 
+    ///
     /// # Arguments
     /// * `executor_id` - The ID of the executor to start the pod on
     /// * `pod_name` - A unique name for the pod
     /// * `template_id` - The ID of the template to use
     /// * `ssh_public_keys` - A list of SSH public keys to authorize for pod access
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Value)` - The API response containing pod details
     /// * `Err(ApiError)` - An error if the request fails
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// let pod = lium.start_pod(
@@ -166,14 +166,14 @@ impl Lium {
     }
 
     /// Stops a pod running on the specified executor.
-    /// 
+    ///
     /// # Arguments
     /// * `executor_id` - The ID of the executor running the pod to stop
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Value)` - The API response confirming pod termination
     /// * `Err(ApiError)` - An error if the request fails
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// lium.stop_pod("exec-123").await?;
@@ -183,15 +183,15 @@ impl Lium {
     }
 
     /// Retrieves a pod by its name or HUID (Hardware Unique Identifier).
-    /// 
+    ///
     /// # Arguments
     /// * `name_or_huid` - The name or HUID of the pod to find
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Some(PodInfo))` - The pod information if found
     /// * `Ok(None)` - If no pod matches the given name or HUID
     /// * `Err(ApiError)` - An error if the request fails
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// if let Some(pod) = lium.get_pod_by_name_or_huid("my-pod").await? {
@@ -207,15 +207,15 @@ impl Lium {
     }
 
     /// Retrieves an executor by its HUID (Hardware Unique Identifier).
-    /// 
+    ///
     /// # Arguments
     /// * `huid` - The HUID of the executor to find
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Some(ExecutorInfo))` - The executor information if found
     /// * `Ok(None)` - If no executor matches the given HUID
     /// * `Err(ApiError)` - An error if the request fails
-    /// 
+    ///
     /// # Examples
     /// ```rust
     /// if let Some(executor) = lium.get_executor_by_huid("exec-123").await? {

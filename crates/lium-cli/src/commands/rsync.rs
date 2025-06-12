@@ -9,7 +9,173 @@ use log::{debug, error, info, warn};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-/// Handle the rsync command for directory synchronization
+/// Handles the `rsync` command for bidirectional file synchronization between local and remote pods.
+///
+/// This function provides powerful file synchronization capabilities using the rsync protocol,
+/// enabling efficient data transfer between local machines and cloud GPU pods. It supports
+/// both upload (local to remote) and download (remote to local) operations with advanced
+/// options for filtering, progress monitoring, and error recovery.
+///
+/// # Arguments
+/// * `source` - Source path (local path or pod_targets:remote_path format)
+/// * `destination` - Destination path (local path or pod_targets:remote_path format)
+/// * `options` - Vector of rsync command-line options and flags
+/// * `config` - User configuration containing SSH keys and API credentials
+///
+/// # Returns
+/// * `Result<()>` - Success or error with detailed synchronization information
+///
+/// # Path Format
+/// Remote paths use the format `pod_targets:remote_path` where:
+/// - `pod_targets`: Comma-separated list of pod identifiers (HUIDs, indices, names)
+/// - `remote_path`: Absolute or relative path on the remote pod
+///
+/// Examples:
+/// - `1:/workspace/data` - Pod index 1, /workspace/data directory
+/// - `my-pod:~/models` - Pod named "my-pod", home directory models folder
+/// - `exec-abc123:/tmp/output` - Pod with HUID exec-abc123, /tmp/output directory
+///
+/// # Operation Modes
+///
+/// ## Upload Mode (Local to Remote)
+/// ```bash
+/// lium rsync ./local/data/ 1:/workspace/data/
+/// lium rsync ./model.py pod1,pod2:~/scripts/
+/// ```
+///
+/// ## Download Mode (Remote to Local)
+/// ```bash
+/// lium rsync 1:/workspace/results/ ./results/
+/// lium rsync pod1:/logs ./downloaded-logs/
+/// ```
+///
+/// # Process Flow
+/// 1. **Validation**: Checks rsync availability and path format validation
+/// 2. **Path Parsing**: Determines operation mode (upload/download) and pod targets
+/// 3. **Pod Resolution**: Resolves pod targets to actual pod instances
+/// 4. **SSH Configuration**: Validates SSH keys and connection details
+/// 5. **Remote Setup**: Ensures rsync is installed on target pods
+/// 6. **Synchronization**: Executes rsync for each target pod with retry logic
+/// 7. **Progress Reporting**: Provides real-time feedback and completion status
+///
+/// # Supported Options
+/// The function processes and validates common rsync options:
+/// - `-a, --archive`: Archive mode (permissions, times, symlinks, etc.)
+/// - `-v, --verbose`: Verbose output showing transferred files
+/// - `-q, --quiet`: Suppress most output except errors
+/// - `-z, --compress`: Compress data during transfer
+/// - `-n, --dry-run`: Show what would be transferred without actually doing it
+/// - `--delete`: Delete extraneous files from destination
+/// - `--progress`: Show progress during transfer
+/// - `--exclude PATTERN`: Exclude files matching pattern
+///
+/// # SSH Integration
+/// - Automatically configures SSH for rsync operations
+/// - Uses configured private keys for authentication
+/// - Supports custom ports from pod SSH configurations
+/// - Disables host key checking for cloud environments
+/// - Provides detailed SSH debugging information
+///
+/// # Remote Rsync Installation
+/// The function automatically handles rsync installation on pods:
+/// 1. Checks if rsync is available on the remote pod
+/// 2. Attempts automatic installation using package managers:
+///    - `apt-get` (Debian/Ubuntu)
+///    - `yum` (CentOS/RHEL)
+///    - `apk` (Alpine Linux)
+///    - `dnf` (Fedora)
+/// 3. Verifies successful installation before proceeding
+/// 4. Provides manual installation instructions if auto-install fails
+///
+/// # Error Handling and Retry Logic
+/// - **Connection Failures**: Automatic retry for transient network issues
+/// - **Rsync Errors**: Detailed error code interpretation and suggestions
+/// - **SSH Issues**: Comprehensive SSH debugging and troubleshooting
+/// - **Path Validation**: Early detection of invalid paths and permissions
+/// - **Dependency Check**: Validates rsync availability on both ends
+///
+/// # Performance Optimizations
+/// - **Compression**: Automatic compression for network efficiency
+/// - **Delta Transfer**: Only transfers changed parts of files
+/// - **Progress Monitoring**: Real-time transfer progress for large operations
+/// - **Parallel Operations**: Sequential execution across multiple pods
+/// - **Resume Support**: Rsync's built-in resume capabilities for interrupted transfers
+///
+/// # Examples
+/// ```rust
+/// use lium_cli::commands::rsync::handle;
+/// use lium_cli::config::Config;
+///
+/// let config = Config::new()?;
+///
+/// // Upload local directory to pod
+/// handle(
+///     "./data/".to_string(),
+///     "1:/workspace/data/".to_string(),
+///     vec!["-av".to_string(), "--progress".to_string()],
+///     &config
+/// ).await?;
+///
+/// // Download from pod with exclusions
+/// handle(
+///     "my-pod:/results/".to_string(),
+///     "./results/".to_string(),
+///     vec!["-av".to_string(), "--exclude".to_string(), "*.tmp".to_string()],
+///     &config
+/// ).await?;
+///
+/// // Dry run to preview changes
+/// handle(
+///     "./models/".to_string(),
+///     "1,2,3:~/models/".to_string(),
+///     vec!["-avn".to_string()],
+///     &config
+/// ).await?;
+/// ```
+///
+/// # Output Format
+/// ```text
+/// 🔄 Syncing: ./data/ → 1:/workspace/data/
+///    Mode: Local to Remote
+///    Pods: 1 target(s)
+///    - Target: exec-abc123 (1)
+///
+/// 🔄 Syncing with 'exec-abc123' (1)...
+///   📁 Creating directory structure: /workspace/data
+///   sending incremental file list
+///   ./
+///   model.py
+///   data/train.csv
+///   data/test.csv
+///           
+///   sent 1,234,567 bytes  received 123 bytes  247,738.00 bytes/sec
+///   total size is 1,234,444  speedup is 1.00
+///   ✅ Sync completed successfully
+///
+/// 📊 Sync Summary: 1 pods synced successfully, 0 failed
+/// ```
+///
+/// # Security Considerations
+/// - Uses configured SSH private keys exclusively
+/// - Disables host key checking for cloud pod environments
+/// - Validates file paths to prevent directory traversal attacks
+/// - Logs operations for audit purposes without exposing sensitive data
+/// - Respects file permissions and ownership where possible
+///
+/// # Limitations and Considerations
+/// - **Remote-to-Remote**: Direct pod-to-pod sync not supported (use local staging)
+/// - **Large Files**: Very large files may require stable network connections
+/// - **Permissions**: May require adjustment after sync depending on pod configuration
+/// - **Symbolic Links**: Handling depends on rsync options and target filesystem
+///
+/// # TODO
+/// - Add support for direct pod-to-pod synchronization
+/// - Implement parallel execution for multiple pod operations
+/// - Add bandwidth throttling options
+/// - Support for custom rsync algorithms and configurations
+/// - Add synchronization scheduling and automation
+/// - Implement sync conflict resolution strategies
+/// - Add support for encrypted transfers beyond SSH
 pub async fn handle(
     source: String,
     destination: String,

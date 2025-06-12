@@ -1,6 +1,52 @@
 use crate::{config::Config, ConfigCommands, Result};
 
-/// Handle config command with different actions
+/// Handles the `config` command for configuration management and inspection.
+///
+/// This function serves as the main dispatcher for configuration-related operations,
+/// providing users with tools to view, modify, and manage their Lium CLI settings.
+/// It supports both interactive and programmatic configuration management.
+///
+/// # Arguments
+/// * `action` - The specific configuration action to perform
+/// * `config` - Current user configuration for inspection and modification
+///
+/// # Returns
+/// * `Result<()>` - Success or error with detailed configuration operation information
+///
+/// # Supported Operations
+/// - **Show**: Display current configuration in human-readable format
+/// - **Set**: Modify specific configuration values (placeholder)
+/// - **Get**: Retrieve specific configuration values (placeholder)
+/// - **Reset**: Reset configuration to defaults (placeholder)
+/// - **Init**: Run the interactive setup wizard
+///
+/// # Examples
+/// ```rust
+/// use lium_cli::commands::config::handle;
+/// use lium_cli::{ConfigCommands, config::Config};
+///
+/// let config = Config::new()?;
+///
+/// // Show current configuration
+/// handle(ConfigCommands::Show, &config).await?;
+///
+/// // Set a configuration value
+/// handle(ConfigCommands::Set {
+///     key: "ssh.user".to_string(),
+///     value: "ubuntu".to_string()
+/// }, &config).await?;
+///
+/// // Get a configuration value
+/// handle(ConfigCommands::Get {
+///     key: "api.base_url".to_string()
+/// }, &config).await?;
+/// ```
+///
+/// # TODO
+/// - Implement actual set/get/reset functionality
+/// - Add configuration validation and type checking
+/// - Support for nested configuration paths
+/// - Add configuration backup and restore capabilities
 pub async fn handle(action: ConfigCommands, config: &Config) -> Result<()> {
     match action {
         ConfigCommands::Show => handle_show(config).await,
@@ -11,7 +57,39 @@ pub async fn handle(action: ConfigCommands, config: &Config) -> Result<()> {
     }
 }
 
-/// Show current configuration
+/// Shows the current configuration in a formatted, human-readable display.
+///
+/// Displays the complete user configuration including API settings, SSH configuration,
+/// and other preferences. Sensitive information like API keys are partially masked
+/// for security.
+///
+/// # Arguments
+/// * `config` - User configuration to display
+///
+/// # Returns
+/// * `Result<()>` - Always succeeds unless display formatting fails
+///
+/// # Output Format
+/// ```text
+/// 📋 Current Configuration:
+/// Configuration file: ~/.lium/config.toml
+///
+/// [api]
+/// api_key = "lium_****...****abc123"
+/// base_url = "https://api.lium.ai"
+///
+/// [ssh]
+/// key_path = "~/.ssh/id_ed25519.pub"
+/// user = "root"
+///
+/// [template]
+/// default_id = "pytorch-base"
+/// ```
+///
+/// # TODO
+/// - Add configuration validation status
+/// - Show configuration source (file, environment, defaults)
+/// - Add configuration health checks
 async fn handle_show(config: &Config) -> Result<()> {
     println!("📋 Current Configuration:");
     println!("{}", config.show_config());

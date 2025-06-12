@@ -14,86 +14,333 @@ use lium_core::{
 };
 use log::debug;
 
+/// Command-line arguments for the `ls` command that lists and filters cloud GPU executors.
+///
+/// The `ls` command is the primary way to discover available cloud GPU resources,
+/// compare pricing, and find suitable executors for workloads. It provides extensive
+/// filtering, sorting, and display options to help users make informed decisions.
+///
+/// # Examples
+/// ```bash
+/// # List all executors with default table view
+/// lium ls
+///
+/// # Filter by GPU type
+/// lium ls RTX4090
+/// lium ls --gpu H100
+///
+/// # Filter by price range and show only available
+/// lium ls --price "0.5-2.0" --available
+///
+/// # Sort by GPU count and show detailed view
+/// lium ls --sort gpu-count --format detailed
+///
+/// # Show GPU summary with location filtering
+/// lium ls --summary --location "us-east"
+///
+/// # Find Pareto optimal executors and export to CSV
+/// lium ls --pareto --export results.csv
+/// ```
+///
+/// # Filtering Capabilities
+/// - **GPU Type**: Filter by specific GPU models (RTX4090, H100, etc.)
+/// - **Price Range**: Set minimum and maximum price per GPU per hour
+/// - **Availability**: Show only executors available for immediate rental
+/// - **Location**: Filter by geographic region or datacenter
+/// - **RAM**: Set minimum RAM requirements
+/// - **Pareto Optimal**: Show only price/performance optimal options
+///
+/// # Display Formats
+/// - **Table**: Structured table with all key information (default)
+/// - **Compact**: Dense one-line format for quick scanning
+/// - **Detailed**: Verbose multi-line format with full specifications
+/// - **Summary**: Aggregated statistics grouped by GPU type
+///
+/// # TODO
+/// - Add support for custom columns in table view
+/// - Implement saved filter presets
+/// - Add support for multiple GPU type filters
+/// - Add executor availability notifications
 #[derive(Args)]
 pub struct LsArgs {
-    /// GPU type to filter by (e.g., RTX4090, H100) - can also use --gpu flag
+    /// GPU type to filter by (positional argument alternative to --gpu flag).
+    ///
+    /// This positional argument provides a convenient way to filter by GPU type
+    /// without using the --gpu flag. It takes precedence over the --gpu flag
+    /// when both are specified.
+    ///
+    /// Supports partial matching and is case-insensitive.
+    /// Examples: "RTX4090", "H100", "A100", "V100"
     #[arg(value_name = "GPU_TYPE")]
     pub gpu_type: Option<String>,
 
-    /// Filter by GPU type (e.g., RTX4090, H100) - alternative to positional argument
+    /// Filter by GPU type using a flag (alternative to positional argument).
+    ///
+    /// Provides the same functionality as the positional gpu_type argument
+    /// but using the traditional --gpu flag syntax. The positional argument
+    /// takes precedence if both are specified.
+    ///
+    /// Examples: --gpu RTX4090, --gpu H100
     #[arg(short, long)]
     pub gpu: Option<String>,
 
-    /// Filter by price range per GPU per hour (e.g., "0.5-2.0")
+    /// Filter by price range per GPU per hour in USD.
+    ///
+    /// Accepts a range in the format "MIN-MAX" where MIN and MAX are decimal
+    /// numbers representing dollars per GPU per hour. Both inclusive bounds.
+    ///
+    /// Examples:
+    /// - "0.5-2.0": Between $0.50 and $2.00 per GPU per hour
+    /// - "1.0-5.0": Between $1.00 and $5.00 per GPU per hour
+    /// - "0.1-0.8": Between $0.10 and $0.80 per GPU per hour
     #[arg(short, long)]
     pub price: Option<String>,
 
-    /// Show only available executors
+    /// Show only executors that are currently available for rental.
+    ///
+    /// Filters out executors that are currently rented, under maintenance,
+    /// or otherwise unavailable. Essential for finding executors that can
+    /// be immediately rented with `lium up`.
     #[arg(short, long)]
     pub available: bool,
 
-    /// Sort by price (ascending)
+    /// Sort results by price in ascending order (cheapest first).
+    ///
+    /// This is a convenience flag equivalent to --sort price.
+    /// Cannot be used together with other sorting flags.
     #[arg(long)]
     pub sort_price: bool,
 
-    /// Sort by GPU count (descending)
+    /// Sort results by GPU count in descending order (most GPUs first).
+    ///
+    /// This is a convenience flag equivalent to --sort gpu-count.
+    /// Cannot be used together with other sorting flags.
     #[arg(long)]
     pub sort_gpu: bool,
 
-    /// Show GPU type summary instead of detailed list
+    /// Show GPU type summary instead of individual executor listing.
+    ///
+    /// Aggregates executors by GPU type and shows statistics including:
+    /// - Total count per GPU type
+    /// - Available count and percentage
+    /// - Price range (min, max, average) per GPU type
     #[arg(long)]
     pub summary: bool,
 
-    /// Show only Pareto optimal executors (best price/performance)
+    /// Show only Pareto optimal executors (best price/performance ratio).
+    ///
+    /// Applies Pareto optimality analysis to find executors that are not
+    /// dominated by others in terms of price and performance. An executor
+    /// is Pareto optimal if no other executor is both cheaper and more powerful.
     #[arg(long)]
     pub pareto: bool,
 
-    /// Limit number of results
+    /// Limit the number of results displayed.
+    ///
+    /// Useful for showing only the top N results after filtering and sorting.
+    /// Applied after all filtering and sorting operations.
+    ///
+    /// Example: --limit 10 (show only top 10 results)
     #[arg(short, long)]
     pub limit: Option<usize>,
 
-    /// Display format: table (default), compact, or detailed
+    /// Display format for the results.
+    ///
+    /// Controls how executor information is presented to the user.
+    /// Each format serves different use cases and information density needs.
     #[arg(long, value_enum, default_value = "table")]
     pub format: DisplayFormat,
 
-    /// Sort by different criteria
+    /// Sort criteria for the results.
+    ///
+    /// Specifies the primary sorting criterion. Can be combined with --reverse
+    /// to change the sort order.
     #[arg(long, value_enum)]
     pub sort: Option<SortBy>,
 
-    /// Show only executors from specific locations
+    /// Filter executors by geographic location or datacenter.
+    ///
+    /// Supports partial matching against region, country, state, city, or
+    /// datacenter names. Matching is case-insensitive.
+    ///
+    /// Examples: "us-east", "europe", "california", "aws-us-west-2"
     #[arg(long)]
     pub location: Option<String>,
 
-    /// Minimum RAM in GB
+    /// Minimum RAM requirement in gigabytes.
+    ///
+    /// Filters out executors with less than the specified amount of RAM.
+    /// Useful for memory-intensive workloads that require specific RAM thresholds.
+    ///
+    /// Examples: --min-ram 32, --min-ram 64, --min-ram 128
     #[arg(long)]
     pub min_ram: Option<f64>,
 
-    /// Export results to file (json, csv)
+    /// Export results to a file in JSON or CSV format.
+    ///
+    /// The format is determined by the file extension:
+    /// - .json: Export as JSON array with full executor details
+    /// - .csv: Export as CSV with key fields suitable for spreadsheet analysis
+    ///
+    /// Examples: --export results.json, --export data.csv
     #[arg(long)]
     pub export: Option<String>,
 
-    /// Reverse sort order
+    /// Reverse the sort order (ascending becomes descending and vice versa).
+    ///
+    /// Can be combined with any sorting option to invert the default order.
+    /// Useful for showing most expensive first, oldest first, etc.
     #[arg(long)]
     pub reverse: bool,
 }
 
+/// Display format options for executor listings.
+///
+/// Each format serves different use cases and provides varying levels of detail:
+/// - **Table**: Best for comprehensive comparison with structured layout
+/// - **Compact**: Best for quick scanning and terminal-friendly output
+/// - **Detailed**: Best for in-depth analysis of specific executors
+/// - **Summary**: Best for understanding market overview by GPU type
 #[derive(clap::ValueEnum, Clone, Debug)]
 pub enum DisplayFormat {
+    /// Structured table format with columns for all key information.
+    ///
+    /// Shows: Index, HUID, GPU Type, Count, Price per GPU, Total Price, RAM, Location, Status
+    /// Best for: Comparing multiple executors side-by-side
     Table,
+
+    /// Dense single-line format for each executor.
+    ///
+    /// Shows: Status icon, HUID, GPU info, price, location in one line
+    /// Best for: Quick scanning and terminal output with limited width
     Compact,
+
+    /// Verbose multi-line format with full specifications.
+    ///
+    /// Shows: All available information including detailed specs and metadata
+    /// Best for: Deep analysis of specific executors
     Detailed,
+
+    /// Aggregated statistics grouped by GPU type.
+    ///
+    /// Shows: GPU type summary with counts, availability, and price ranges
+    /// Best for: Market overview and GPU type comparison
     Summary,
 }
 
+/// Sorting criteria for executor listings.
+///
+/// Defines the primary field used for sorting results. All sorting can be
+/// combined with the --reverse flag to change the sort direction.
 #[derive(clap::ValueEnum, Clone, Debug)]
 pub enum SortBy {
+    /// Sort by price per GPU per hour (ascending by default).
+    ///
+    /// Default behavior shows cheapest executors first.
+    /// Use --reverse to show most expensive first.
     Price,
+
+    /// Sort by number of GPUs per executor (descending by default).
+    ///
+    /// Default behavior shows executors with most GPUs first.
+    /// Use --reverse to show single-GPU executors first.
     GpuCount,
+
+    /// Sort by total RAM in gigabytes (ascending by default).
+    ///
+    /// Default behavior shows executors with least RAM first.
+    /// Use --reverse to show highest RAM executors first.
     Ram,
+
+    /// Sort by geographic location alphabetically (ascending by default).
+    ///
+    /// Uses region > country > state > city hierarchy for comparison.
+    /// Use --reverse for reverse alphabetical order.
     Location,
+
+    /// Sort by availability status (available first by default).
+    ///
+    /// Default behavior shows available executors before rented ones.
+    /// Use --reverse to show rented executors first.
     Status,
 }
 
+/// Handles the `ls` command to list and filter cloud GPU executors.
+///
+/// This is the primary discovery command for cloud GPU resources. It fetches executor
+/// information from the API, applies user-specified filters and sorting, and displays
+/// the results in the requested format.
+///
+/// # Arguments
+/// * `args` - Command-line arguments parsed into `LsArgs` struct
+/// * `config` - User configuration containing API credentials and preferences
+///
+/// # Returns
+/// * `Result<()>` - Success or error with detailed error information
+///
+/// # Process Flow
+/// 1. **API Connection**: Creates authenticated client and fetches executor data
+/// 2. **Filtering**: Applies all specified filters (GPU, price, location, etc.)
+/// 3. **Pareto Analysis**: Optionally finds Pareto optimal executors
+/// 4. **Sorting**: Applies requested sorting criteria and direction
+/// 5. **Limiting**: Truncates results if limit is specified
+/// 6. **Export**: Optionally exports data to file before display
+/// 7. **Display**: Shows results in requested format
+/// 8. **Summary**: Shows applied filters and sorting information
+///
+/// # Filtering Behavior
+/// All filters are applied as AND conditions:
+/// - GPU type: Partial, case-insensitive matching
+/// - Price range: Inclusive range filtering
+/// - Availability: Boolean filter for rental status
+/// - Location: Partial, case-insensitive matching against all location fields
+/// - RAM: Minimum threshold filtering
+/// - Pareto optimal: Mathematical optimization based on price/performance
+///
+/// # Error Conditions
+/// - API connection failures (network, authentication)
+/// - Invalid price range format
+/// - Invalid export file format or write permissions
+/// - No executors found after filtering
+///
+/// # Performance Considerations
+/// - Results are cached during the command execution
+/// - Large datasets are handled efficiently with streaming display
+/// - Export operations are memory-optimized for large result sets
+///
+/// # Examples
+/// ```rust
+/// use lium_cli::commands::ls::{handle, LsArgs, DisplayFormat, SortBy};
+/// use lium_cli::config::Config;
+///
+/// let args = LsArgs {
+///     gpu_type: Some("RTX4090".to_string()),
+///     gpu: None,
+///     price: Some("0.5-2.0".to_string()),
+///     available: true,
+///     sort_price: false,
+///     sort_gpu: false,
+///     summary: false,
+///     pareto: true,
+///     limit: Some(10),
+///     format: DisplayFormat::Table,
+///     sort: Some(SortBy::Price),
+///     location: Some("us-east".to_string()),
+///     min_ram: Some(32.0),
+///     export: Some("results.csv".to_string()),
+///     reverse: false,
+/// };
+///
+/// let config = Config::new()?;
+/// handle(args, &config).await?;
+/// ```
+///
+/// # TODO
+/// - Add real-time price monitoring and alerts
+/// - Implement executor bookmark/favorites system
+/// - Add historical price data and trends
+/// - Support for complex filter expressions
+/// - Add executor recommendation engine based on workload patterns
 pub async fn handle(args: LsArgs, config: &Config) -> Result<()> {
     let client = LiumApiClient::from_config(config)?;
 

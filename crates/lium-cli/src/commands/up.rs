@@ -14,45 +14,204 @@ use lium_core::{
 };
 use std::collections::HashMap;
 
+/// Command-line arguments for the `up` command that creates and starts new pods.
+///
+/// The `up` command is the primary way to rent cloud GPU executors and start containerized
+/// workloads on them. It handles template/image selection, executor filtering, environment
+/// configuration, and pod creation.
+///
+/// # Examples
+/// ```bash
+/// # Start a pod with the default template
+/// lium up
+///
+/// # Use a specific Docker image
+/// lium up --image pytorch/pytorch:latest
+///
+/// # Filter by GPU type and select by index
+/// lium up --gpu RTX4090 --index 1
+///
+/// # Set environment variables and port mappings
+/// lium up --env "DEBUG=1,API_KEY=secret" --ports "8080:80,9000:9000"
+///
+/// # Skip confirmation prompts (useful for automation)
+/// lium up --yes --name my-training-pod
+/// ```
+///
+/// # Template vs Docker Image Handling
+/// The `image` parameter accepts both:
+/// - Template IDs: Direct references to pre-configured templates
+/// - Docker images: Full Docker image names (e.g., `pytorch/pytorch:latest`)
+///
+/// When a Docker image is provided, the system first searches for existing templates
+/// that use that image. If none are found, it attempts to use the input as a template ID.
+///
+/// # Executor Selection
+/// Executors can be filtered and selected through multiple criteria:
+/// - GPU type filtering via `--gpu`
+/// - Availability filtering (defaults to available only)
+/// - Manual selection via `--index`
+/// - Interactive selection when no index is specified
+///
+/// # TODO
+/// - Add support for custom resource requirements (CPU, RAM, storage)
+/// - Implement cost estimation before pod creation
+/// - Add support for multi-GPU configurations
+/// - Add template creation from arbitrary Docker images
 #[derive(Args)]
 pub struct UpArgs {
-    /// Template ID to use (replaces --image)
+    /// Template ID or Docker image to use for the pod.
+    ///
+    /// This parameter accepts either:
+    /// - Template ID: A pre-configured template identifier (e.g., "pytorch-base")
+    /// - Docker image: Full Docker image name with optional tag (e.g., "pytorch/pytorch:2.0-gpu")
+    ///
+    /// When a Docker image is provided, the system attempts to find an existing template
+    /// that uses that image. If no matching template is found, it tries to use the input
+    /// as a template ID directly.
+    ///
+    /// If not specified, the system uses the first available template as default.
     #[arg(short, long)]
     pub image: Option<String>,
 
-    /// Filter by GPU type (e.g., RTX4090, H100)
+    /// Filter executors by GPU type (case-insensitive partial matching).
+    ///
+    /// Supports common GPU models:
+    /// - RTX series: RTX4090, RTX3090, RTX3080
+    /// - Professional: H100, A100, V100, A6000, T4, L4, L40
+    ///
+    /// Examples: "RTX4090", "H100", "A100"
     #[arg(short, long)]
     pub gpu: Option<String>,
 
-    /// Show only available executors
+    /// Show only available executors for rental.
+    ///
+    /// When enabled, filters out executors that are currently rented or unavailable.
+    /// This is the default behavior for the up command since you can only rent
+    /// available executors.
     #[arg(short, long)]
     pub available: bool,
 
-    /// Select executor by index (1-based)
+    /// Select executor by index from the filtered list (1-based indexing).
+    ///
+    /// After filtering executors by GPU type and availability, this allows direct
+    /// selection without interactive prompts. Useful for automation and scripting.
+    ///
+    /// Examples: "1", "3", "5"
     #[arg(short, long)]
     pub index: Option<String>,
 
-    /// Environment variables (KEY=VALUE,KEY2=VALUE2)
+    /// Environment variables to set in the pod (comma-separated KEY=VALUE pairs).
+    ///
+    /// Variables are injected into the container environment and can be used by
+    /// applications running inside the pod.
+    ///
+    /// Format: "KEY1=VALUE1,KEY2=VALUE2"
+    /// Example: "DEBUG=1,API_KEY=secret,CUDA_VISIBLE_DEVICES=0"
     #[arg(short, long)]
     pub env: Option<String>,
 
-    /// Port mappings (8080:80,9000:9000)
+    /// Port mappings from pod to host (comma-separated HOST_PORT:CONTAINER_PORT pairs).
+    ///
+    /// Maps ports from the container to the host system, enabling external access
+    /// to services running inside the pod.
+    ///
+    /// Format: "HOST_PORT:CONTAINER_PORT,HOST_PORT2:CONTAINER_PORT2"
+    /// Example: "8080:80,9000:9000,8888:8888"
     #[arg(short, long)]
     pub ports: Option<String>,
 
-    /// SSH public key path
+    /// Path to SSH public key file for pod access.
+    ///
+    /// Overrides the default SSH key configured in the user's configuration.
+    /// The corresponding private key will be used for SSH connections to the pod.
+    ///
+    /// Example: "~/.ssh/custom_key.pub"
     #[arg(long)]
     pub ssh_key: Option<String>,
 
-    /// Pod name (optional)
+    /// Custom name for the pod (optional).
+    ///
+    /// If not provided, a name is automatically generated using the executor HUID.
+    /// Pod names are used for identification in `lium ps`, `lium exec`, and other commands.
+    ///
+    /// Example: "training-job-v2", "jupyter-workspace"
     #[arg(short, long)]
     pub name: Option<String>,
 
-    /// Skip confirmation prompts
+    /// Skip confirmation prompts and proceed automatically.
+    ///
+    /// Useful for automation, scripts, and CI/CD pipelines where interactive
+    /// confirmation is not possible or desired.
     #[arg(short, long)]
     pub yes: bool,
 }
 
+/// Handles the `up` command to create and start a new pod on a cloud GPU executor.
+///
+/// This is the main entry point for pod creation. It orchestrates the entire process
+/// from executor selection to pod startup, including template resolution, filtering,
+/// user interaction, and API calls.
+///
+/// # Arguments
+/// * `args` - Command-line arguments parsed into `UpArgs` struct
+/// * `config` - User configuration containing API keys, SSH settings, etc.
+///
+/// # Returns
+/// * `Result<()>` - Success or error with detailed error information
+///
+/// # Process Flow
+/// 1. **Configuration Validation**: Checks API key availability and creates API client
+/// 2. **Template Resolution**: Handles both template IDs and Docker images
+/// 3. **Executor Fetching**: Retrieves available executors from the API
+/// 4. **Filtering**: Applies GPU type, availability, and other filters
+/// 5. **Selection**: Interactive or index-based executor selection
+/// 6. **Confirmation**: Shows summary and requests user confirmation (unless `--yes`)
+/// 7. **Pod Creation**: Calls the rent_pod API to create and start the pod
+/// 8. **Result Display**: Shows pod details including SSH connection info
+///
+/// # Error Conditions
+/// - Invalid API key or configuration
+/// - No executors found matching criteria
+/// - Template/image not found
+/// - Network errors during API calls
+/// - SSH key configuration issues
+/// - Pod creation failures
+///
+/// # Examples
+/// ```rust
+/// use lium_cli::commands::up::{handle, UpArgs};
+/// use lium_cli::config::Config;
+///
+/// let args = UpArgs {
+///     image: Some("pytorch/pytorch:latest".to_string()),
+///     gpu: Some("RTX4090".to_string()),
+///     available: true,
+///     index: Some("1".to_string()),
+///     env: Some("DEBUG=1".to_string()),
+///     ports: Some("8080:80".to_string()),
+///     ssh_key: None,
+///     name: Some("my-pod".to_string()),
+///     yes: false,
+/// };
+///
+/// let config = Config::new()?;
+/// handle(args, &config).await?;
+/// ```
+///
+/// # Debug Information
+/// The function includes extensive debug logging for troubleshooting:
+/// - API key validation and source
+/// - Template resolution process
+/// - Executor filtering results
+/// - API call success/failure details
+///
+/// # TODO
+/// - Add support for spot instances and preemptible pricing
+/// - Implement pod startup health checks
+/// - Add support for persistent storage mounting
+/// - Improve error messages with suggested solutions
+/// - Add cost estimation before pod creation
 pub async fn handle(args: UpArgs, config: &Config) -> Result<()> {
     // DEBUG: Check if API key exists in config
     print_info("DEBUG: Checking API key configuration...");

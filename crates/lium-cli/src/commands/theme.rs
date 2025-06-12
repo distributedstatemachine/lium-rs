@@ -2,7 +2,27 @@ use crate::config::Config;
 use crate::Result;
 use dialoguer::Select;
 
-/// Available themes
+/// Available theme configurations for the Lium CLI interface.
+///
+/// Each theme defines a color scheme and styling approach optimized for different
+/// terminal environments and user preferences. Themes affect the appearance of
+/// tables, status messages, progress indicators, and other UI elements.
+///
+/// # Theme Descriptions
+/// - **default**: Standard theme with balanced colors for most terminal environments
+/// - **dark**: Optimized for dark terminal backgrounds with muted, eye-friendly colors
+/// - **light**: Designed for light terminal backgrounds with higher contrast colors
+/// - **minimal**: Clean theme with minimal styling and reduced visual clutter
+/// - **cyberpunk**: High-contrast theme with neon-style colors for a futuristic aesthetic
+///
+/// # Color Applications
+/// Themes define colors for:
+/// - **Header text**: Command titles and section headers
+/// - **Success messages**: Positive feedback and completion notifications
+/// - **Error messages**: Error reporting and failure notifications
+/// - **Warning messages**: Cautionary information and important notices
+/// - **Info messages**: General information and status updates
+/// - **Accent colors**: Highlights, selections, and emphasis
 const AVAILABLE_THEMES: &[(&str, &str)] = &[
     ("default", "Default theme with standard colors"),
     ("dark", "Dark theme with muted colors"),
@@ -11,7 +31,51 @@ const AVAILABLE_THEMES: &[(&str, &str)] = &[
     ("cyberpunk", "Cyberpunk theme with neon colors"),
 ];
 
-/// Handle theme command with different actions
+/// Handles the `theme` command for visual appearance customization.
+///
+/// This function manages the CLI's theming system, allowing users to customize
+/// the visual appearance of command output, tables, and status messages. It provides
+/// both listing and setting capabilities for theme management.
+///
+/// # Arguments
+/// * `action` - The specific theme action to perform (list or set)
+/// * `config` - User configuration for theme persistence (currently placeholder)
+///
+/// # Returns
+/// * `Result<()>` - Success or error with theme operation information
+///
+/// # Supported Operations
+/// - **List**: Display all available themes with descriptions
+/// - **Set**: Change the active theme (with optional interactive selection)
+///
+/// # Examples
+/// ```rust
+/// use lium_cli::commands::theme::handle;
+/// use lium_cli::{ThemeCommands, config::Config};
+///
+/// let config = Config::new()?;
+///
+/// // List available themes
+/// handle(ThemeCommands::List, &config).await?;
+///
+/// // Set specific theme
+/// handle(ThemeCommands::Set {
+///     name: "dark".to_string()
+/// }, &config).await?;
+/// ```
+///
+/// # Theme System Status
+/// **Note**: The theming system is currently in development. Theme selection
+/// affects color output but persistence to configuration files is not yet
+/// implemented. Future versions will include full theme persistence and
+/// additional customization options.
+///
+/// # TODO
+/// - Implement theme persistence in TOML configuration
+/// - Add support for custom theme creation
+/// - Support for theme inheritance and overrides
+/// - Add preview functionality for theme selection
+/// - Implement theme import/export capabilities
 pub async fn handle(action: crate::ThemeCommands, config: &Config) -> Result<()> {
     match action {
         crate::ThemeCommands::List => handle_list().await,
@@ -19,7 +83,29 @@ pub async fn handle(action: crate::ThemeCommands, config: &Config) -> Result<()>
     }
 }
 
-/// Handle theme list command
+/// Displays all available themes with their descriptions.
+///
+/// Lists all built-in themes available in the Lium CLI, providing users with
+/// an overview of styling options. Each theme is displayed with its name and
+/// a brief description of its intended use case.
+///
+/// # Returns
+/// * `Result<()>` - Always succeeds unless display formatting fails
+///
+/// # Output Format
+/// ```text
+/// 🎨 Available themes:
+///   default - Default theme with standard colors
+///   dark - Dark theme with muted colors
+///   light - Light theme with bright colors
+///   minimal - Minimal theme with reduced styling
+///   cyberpunk - Cyberpunk theme with neon colors
+/// ```
+///
+/// # TODO
+/// - Add theme preview samples
+/// - Show currently active theme
+/// - Add theme compatibility information
 async fn handle_list() -> Result<()> {
     println!("🎨 Available themes:");
     for (name, description) in AVAILABLE_THEMES {
