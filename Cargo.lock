@@ -1078,6 +1078,7 @@ dependencies = [
  "lium-api",
  "lium-core",
  "lium-utils",
+ "log",
  "rand",
  "reqwest",
  "serde",

@@ -1,13 +1,15 @@
 use crate::{config::Config, CliError, Result};
 use dialoguer::{Input, Password, Select};
+use log::debug;
 use std::path::Path;
+use tokio::time::{timeout, Duration};
 
 /// Handle the init command for first-time setup
 pub async fn handle() -> Result<()> {
-    println!("🚀 Lium initialization");
+    println!("🍄 Lium initialization");
     println!("Setting up your Lium configuration...\n");
 
-    let mut config = Config::new()?;
+    let mut config = Config::new()?; // Use synchronous version to avoid nested async issues
 
     // Get API key
     let api_key = if let Some(existing_key) = config.get_api_key()? {
@@ -45,11 +47,19 @@ pub async fn handle() -> Result<()> {
         get_ssh_key_path_from_user()?
     };
 
+    debug!("About to set SSH key path: {}", ssh_key_path);
     config.set_ssh_public_key_path(&ssh_key_path)?;
-    config.set_ssh_user("root")?; // Default to root as per spec
+    debug!("SSH key path set successfully");
 
-    // Save configuration
-    config.save()?;
+    debug!("About to set SSH user");
+    config.set_ssh_user("root")?; // Default to root as per spec
+    debug!("SSH user set successfully");
+
+    // Save configuration with proper async handling
+    println!("\n💾 Saving configuration...");
+    debug!("About to save config");
+    save_config_async(&config).await?;
+    debug!("Config saved successfully");
 
     // Test API connection
     println!("\n🔍 Testing API connection...");
@@ -78,7 +88,7 @@ pub async fn handle() -> Result<()> {
             .show_config()
             .lines()
             .next()
-            .unwrap_or("~/.lium/config.ini")
+            .unwrap_or("~/.lium/config.toml")
     );
     println!("\nYou can now use 'lium ls' to see available executors.");
 
@@ -88,7 +98,7 @@ pub async fn handle() -> Result<()> {
 /// Get API key from user input
 fn get_api_key_from_user() -> Result<String> {
     println!("Please enter your Lium API key.");
-    println!("You can get your API key from: https://celium.ai/dashboard/api-keys");
+    println!("You can get your API key from: https://celiumcompute.ai/api-keys");
 
     let api_key: String = Password::new()
         .with_prompt("API Key")
@@ -108,17 +118,23 @@ fn get_api_key_from_user() -> Result<String> {
 fn get_ssh_key_path_from_user() -> Result<String> {
     println!("\nPlease enter the path to your SSH public key.");
     println!("This is typically ~/.ssh/id_rsa.pub or ~/.ssh/id_ed25519.pub");
+    debug!("Starting SSH key path detection");
 
     let default_paths = vec![
         "~/.ssh/id_rsa.pub",
         "~/.ssh/id_ed25519.pub",
         "~/.ssh/id_ecdsa.pub",
+        "~/.ssh/tplr.pub", // Add your custom key
     ];
 
     // Check if any default paths exist
+    debug!("Checking default paths");
     for default_path in &default_paths {
+        debug!("Checking path: {}", default_path);
         let expanded = expand_path(default_path)?;
+        debug!("Expanded to: {:?}", expanded);
         if expanded.exists() {
+            debug!("Found existing key at {}", default_path);
             let use_default = Select::new()
                 .with_prompt(format!("Found SSH key at {}. Use this key?", default_path))
                 .items(&["Yes, use this key", "No, enter different path"])
@@ -126,31 +142,112 @@ fn get_ssh_key_path_from_user() -> Result<String> {
                 .interact()?;
 
             if use_default == 0 {
+                debug!("User selected existing key");
                 return Ok(default_path.to_string());
             }
             break;
         }
     }
 
-    // Get custom path
-    let ssh_key_path: String = Input::new()
-        .with_prompt("SSH public key path")
-        .with_initial_text("~/.ssh/id_rsa.pub")
+    // No existing keys found, inform user
+    debug!("No existing SSH public keys found");
+    println!("\n⚠️  No SSH public keys found in the default locations.");
+    println!("You have the following options:");
+    println!("1. Create a new SSH key pair");
+    println!("2. Generate a public key from your existing private key");
+    println!("3. Enter a custom path to an existing public key");
+
+    let choice = Select::new()
+        .with_prompt("What would you like to do?")
+        .items(&[
+            "Create new SSH key pair",
+            "Generate public key from private key",
+            "Enter custom path",
+        ])
+        .default(0)
         .interact()?;
 
-    if ssh_key_path.trim().is_empty() {
-        return Err(CliError::InvalidInput(
-            "SSH key path cannot be empty".to_string(),
-        ));
-    }
+    match choice {
+        0 => {
+            println!("Please run: ssh-keygen -t ed25519 -C \"your_email@example.com\"");
+            println!("Then run 'lium init' again.");
+            return Err(CliError::InvalidInput(
+                "SSH key generation required".to_string(),
+            ));
+        }
+        1 => {
+            // Try to generate from existing private key
+            let private_key_path: String = Input::new()
+                .with_prompt("Path to private key")
+                .with_initial_text("~/.ssh/tplr")
+                .interact()?;
 
-    Ok(ssh_key_path.trim().to_string())
+            let expanded_private = expand_path(&private_key_path)?;
+            if !expanded_private.exists() {
+                return Err(CliError::InvalidInput(format!(
+                    "Private key not found: {}",
+                    expanded_private.display()
+                )));
+            }
+
+            let public_key_path = format!("{}.pub", private_key_path);
+            println!(
+                "Run: ssh-keygen -y -f {} > {}",
+                private_key_path, public_key_path
+            );
+            println!("Then run 'lium init' again.");
+            return Err(CliError::InvalidInput(
+                "Public key generation required".to_string(),
+            ));
+        }
+        2 => {
+            // Get custom path
+            debug!("Getting custom path from user");
+            let ssh_key_path: String = Input::new()
+                .with_prompt("SSH public key path")
+                .with_initial_text("~/.ssh/id_rsa.pub")
+                .interact()?;
+
+            debug!("User entered path: {}", ssh_key_path);
+
+            if ssh_key_path.trim().is_empty() {
+                return Err(CliError::InvalidInput(
+                    "SSH key path cannot be empty".to_string(),
+                ));
+            }
+
+            // Validate that the path exists
+            let expanded = expand_path(ssh_key_path.trim())?;
+            if !expanded.exists() {
+                return Err(CliError::InvalidInput(format!(
+                    "SSH key file not found: {}",
+                    expanded.display()
+                )));
+            }
+
+            debug!("Returning path: {}", ssh_key_path.trim());
+            Ok(ssh_key_path.trim().to_string())
+        }
+        _ => unreachable!(),
+    }
 }
 
 /// Test API connection with the provided key
 async fn test_api_connection(api_key: &str) -> Result<()> {
     let api_client = lium_api::LiumApiClient::new(api_key.to_string(), None);
-    api_client.test_connection().await?;
+
+    // Add 10 second timeout to prevent hanging
+    match timeout(Duration::from_secs(10), api_client.test_connection()).await {
+        Ok(result) => {
+            result?;
+        }
+        Err(_) => {
+            return Err(CliError::InvalidInput(
+                "API connection timed out after 10 seconds".to_string(),
+            ));
+        }
+    }
+
     Ok(())
 }
 
@@ -190,17 +287,55 @@ fn validate_ssh_key(key_path: &str) -> Result<()> {
     Ok(())
 }
 
-/// Expand path with tilde
+/// Expand path with tilde and better error handling
 fn expand_path(path: &str) -> Result<std::path::PathBuf> {
-    if path.starts_with('~') {
+    debug!("Expanding path: {}", path);
+
+    let expanded = if path.starts_with('~') {
         if let Some(home_dir) = dirs::home_dir() {
-            Ok(home_dir.join(path.strip_prefix("~/").unwrap_or(&path[1..])))
+            let relative_part = path.strip_prefix("~/").unwrap_or(&path[1..]);
+            home_dir.join(relative_part)
         } else {
-            Err(CliError::InvalidInput(
+            return Err(CliError::InvalidInput(
                 "Cannot determine home directory".to_string(),
-            ))
+            ));
         }
     } else {
-        Ok(Path::new(path).to_path_buf())
+        Path::new(path).to_path_buf()
+    };
+
+    debug!("Expanded path result: {:?}", expanded);
+    Ok(expanded)
+}
+
+/// Save config with proper async handling
+async fn save_config_async(config: &Config) -> Result<()> {
+    let config = config.clone();
+
+    // Use timeout with proper error handling
+    match timeout(
+        Duration::from_secs(5),
+        tokio::task::spawn_blocking(move || {
+            // Add explicit flush to ensure write completes
+            config.save()
+        }),
+    )
+    .await
+    {
+        Ok(join_result) => match join_result {
+            Ok(save_result) => save_result,
+            Err(join_error) => {
+                log::error!("Config save task panicked: {:?}", join_error);
+                Err(CliError::InvalidInput(
+                    "Config save task failed".to_string(),
+                ))
+            }
+        },
+        Err(_timeout_error) => {
+            log::error!("Config save operation timed out");
+            Err(CliError::InvalidInput(
+                "Config save timed out after 5 seconds".to_string(),
+            ))
+        }
     }
 }

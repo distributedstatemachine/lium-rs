@@ -31,7 +31,7 @@ impl LiumApiClient {
     /// Create a new API client
     pub fn new(api_key: String, base_url: Option<String>) -> Self {
         let client = Client::new();
-        let base_url = base_url.unwrap_or_else(|| "https://api.celium.com".to_string());
+        let base_url = base_url.unwrap_or_else(|| "https://celiumcompute.ai/api".to_string());
 
         Self {
             client,

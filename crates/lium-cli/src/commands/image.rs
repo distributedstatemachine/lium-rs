@@ -205,7 +205,29 @@ async fn get_docker_credentials(config: &Config) -> Result<(String, String)> {
     // Store credentials for future use
     let mut config_mut = Config::new()?;
     config_mut.set_docker_credentials(&username, &token)?;
-    config_mut.save()?;
+
+    // Save with timeout to prevent hanging
+    use tokio::time::{timeout, Duration};
+    match timeout(
+        Duration::from_secs(5),
+        tokio::task::spawn_blocking(move || config_mut.save()),
+    )
+    .await
+    {
+        Ok(result) => match result {
+            Ok(save_result) => save_result?,
+            Err(_) => {
+                return Err(CliError::InvalidInput(
+                    "Config save task failed".to_string(),
+                ))
+            }
+        },
+        Err(_) => {
+            return Err(CliError::InvalidInput(
+                "Config save timed out after 5 seconds".to_string(),
+            ))
+        }
+    }
 
     println!("💾 Docker credentials saved for future use");
 

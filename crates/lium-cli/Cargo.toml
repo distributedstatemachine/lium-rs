@@ -52,6 +52,8 @@ thiserror = "1.0"
 # Docker (optional, only if needed)
 bollard = { version = "0.16", optional = true }
 
+log = "0.4.27"
+
 [features]
 default = []
 docker = ["bollard"] 

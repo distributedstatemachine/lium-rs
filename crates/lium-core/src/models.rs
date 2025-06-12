@@ -74,13 +74,29 @@ pub struct TemplateInfo {
 pub struct ApiExecutorResponse {
     pub id: String,
     pub machine_name: String,
+
+    // Make gpu_count optional with default value
+    #[serde(default = "default_gpu_count")]
     pub gpu_count: i32,
+
     pub price_per_hour: f64,
-    pub location: HashMap<String, String>,
+
+    // Changed to handle both strings and numbers (like coordinates)
+    #[serde(default)]
+    pub location: HashMap<String, serde_json::Value>, // Changed from HashMap<String, String>
+
+    #[serde(default)]
     pub specs: serde_json::Value,
+
     pub active: Option<bool>, // Maps to status/available
+
     #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>, // Catch unknown fields
+}
+
+// Default function for gpu_count
+fn default_gpu_count() -> i32 {
+    1 // Default to 1 GPU if not specified
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -115,21 +131,41 @@ impl From<ApiExecutorResponse> for ExecutorInfo {
     fn from(api_response: ApiExecutorResponse) -> Self {
         let gpu_type = extract_gpu_model_simple(&api_response.machine_name);
         let huid = generate_human_id_simple(&api_response.id);
-        let price_per_gpu_hour = if api_response.gpu_count > 0 {
-            api_response.price_per_hour / api_response.gpu_count as f64
+
+        // Try to determine GPU count from various sources
+        let gpu_count = determine_gpu_count(&api_response);
+
+        let price_per_gpu_hour = if gpu_count > 0 {
+            api_response.price_per_hour / gpu_count as f64
         } else {
-            0.0
+            api_response.price_per_hour
         };
+
+        // Convert location from HashMap<String, Value> to HashMap<String, String>
+        let location: HashMap<String, String> = api_response
+            .location
+            .into_iter()
+            .map(|(k, v)| {
+                let value_str = match v {
+                    serde_json::Value::String(s) => s,
+                    serde_json::Value::Number(n) => n.to_string(),
+                    serde_json::Value::Bool(b) => b.to_string(),
+                    serde_json::Value::Null => "null".to_string(),
+                    _ => v.to_string().trim_matches('"').to_string(),
+                };
+                (k, value_str)
+            })
+            .collect();
 
         ExecutorInfo {
             id: api_response.id,
             huid,
             machine_name: api_response.machine_name,
             gpu_type,
-            gpu_count: api_response.gpu_count,
+            gpu_count,
             price_per_hour: api_response.price_per_hour,
             price_per_gpu_hour,
-            location: api_response.location,
+            location,
             specs: api_response.specs,
             status: if api_response.active.unwrap_or(false) {
                 "rented".to_string()
@@ -139,6 +175,56 @@ impl From<ApiExecutorResponse> for ExecutorInfo {
             available: !api_response.active.unwrap_or(false),
         }
     }
+}
+
+// Helper function to determine GPU count from various sources
+fn determine_gpu_count(api_response: &ApiExecutorResponse) -> i32 {
+    // First, use the gpu_count field if available and valid
+    if api_response.gpu_count > 0 {
+        return api_response.gpu_count;
+    }
+
+    // Try to extract from specs
+    if let Some(gpu_info) = api_response.specs.get("gpu_count") {
+        if let Some(count) = gpu_info.as_i64() {
+            if count > 0 {
+                return count as i32;
+            }
+        }
+        if let Some(count_str) = gpu_info.as_str() {
+            if let Ok(count) = count_str.parse::<i32>() {
+                if count > 0 {
+                    return count;
+                }
+            }
+        }
+    }
+
+    // Try to extract from extra fields
+    if let Some(gpu_info) = api_response.extra.get("gpu_count") {
+        if let Some(count) = gpu_info.as_i64() {
+            if count > 0 {
+                return count as i32;
+            }
+        }
+    }
+
+    // Try to extract from machine name (e.g., "machine-4x-rtx4090")
+    let machine_lower = api_response.machine_name.to_lowercase();
+    if let Some(x_pos) = machine_lower.find('x') {
+        let before_x = &machine_lower[..x_pos];
+        if let Some(dash_pos) = before_x.rfind('-') {
+            let count_str = &before_x[dash_pos + 1..];
+            if let Ok(count) = count_str.parse::<i32>() {
+                if count > 0 {
+                    return count;
+                }
+            }
+        }
+    }
+
+    // Default fallback
+    1
 }
 
 impl From<ApiPodResponse> for PodInfo {

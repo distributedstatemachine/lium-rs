@@ -113,11 +113,34 @@ impl Config {
         Ok(Config { config_path, data })
     }
 
-    /// Save the configuration to file
+    /// Save the configuration to file with better error handling
     pub fn save(&self) -> Result<()> {
+        // Serialize to TOML
         let content = toml::to_string_pretty(&self.data)
             .map_err(|e| ConfigError::TomlError(e.to_string()))?;
-        fs::write(&self.config_path, content).map_err(CliError::Io)?;
+        
+        // Ensure parent directory exists
+        if let Some(parent) = self.config_path.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent)
+                    .map_err(|e| ConfigError::DirectoryCreationFailed(e.to_string()))?;
+            }
+        }
+        
+        // Write to a temporary file first, then rename (atomic operation)
+        let temp_path = self.config_path.with_extension("tmp");
+        
+        // Write to temp file
+        fs::write(&temp_path, &content).map_err(CliError::Io)?;
+        
+        // Atomic rename
+        fs::rename(&temp_path, &self.config_path).map_err(CliError::Io)?;
+        
+        // Explicitly sync to disk
+        if let Ok(file) = fs::File::open(&self.config_path) {
+            let _ = file.sync_all(); // Ignore errors for sync_all as it's not critical
+        }
+        
         Ok(())
     }
 
@@ -285,6 +308,14 @@ impl Config {
 /// Load configuration
 pub fn load_config() -> Result<Config> {
     Config::new()
+}
+
+/// Async version that doesn't use spawn_blocking to avoid nested async issues
+pub async fn load_config_async() -> Result<Config> {
+    // For config loading, we can use spawn_blocking since it's not nested
+    tokio::task::spawn_blocking(|| Config::new())
+        .await
+        .map_err(|_| CliError::InvalidInput("Config loading task failed".to_string()))?
 }
 
 /// Get configuration directory path

@@ -30,6 +30,8 @@ regex = "1.10"
 tokio = { version = "1.0", features = ["full"] }
 futures = "0.3"
 
+log = "0.4.27"
+
 [package]
 name = "lium-rs"
 version = "0.1.0"
@@ -42,6 +44,7 @@ path = "src/main.rs"
 [dependencies]
 # CLI interface - this now contains all the functionality
 lium-cli = { path = "crates/lium-cli" }
+
 
 # Minimal runtime for main.rs
 tokio = { workspace = true }
