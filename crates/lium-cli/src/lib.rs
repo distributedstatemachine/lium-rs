@@ -124,14 +124,20 @@ pub enum Commands {
         hotkey: Option<String>,
     },
     /// Sync files with pod using rsync
+    #[command(
+        trailing_var_arg = true,
+        about = "Sync files with pod using rsync",
+        long_about = "Sync directories with pod(s) using rsync.\n\n\
+        Examples:\n  \
+        lium rsync ~/project/ 1,2:/home/project/ -v\n  \
+        lium rsync 1:/home/project/ ~/backup/ -z\n  \
+        lium rsync all:/home/logs/ ~/collected/\n  \
+        lium rsync ~/data/ all:/workspace/ --delete --exclude '*.tmp'"
+    )]
     Rsync {
-        /// Source path
-        source: String,
-        /// Destination path
-        destination: String,
-        /// Additional rsync options
-        #[arg(short, long)]
-        options: Option<String>,
+        /// Arguments: <SOURCE> <DESTINATION> [OPTIONS...]
+        #[arg(value_name = "ARGS")]
+        args: Vec<String>,
     },
     /// Stop and remove pod(s)
     Down {
@@ -146,9 +152,28 @@ pub enum Commands {
         yes: bool,
     },
     /// Manage Docker images
+    #[command(
+        about = "Build and manage Docker images",
+        long_about = "Build Docker images and register them with Lium.\n\n\
+        Examples:\n  \
+        lium image my_image .\n  \
+        lium image my_app ./app -f Dockerfile.prod\n  \
+        lium image list\n  \
+        lium image create my-template ubuntu:22.04\n  \
+        lium image delete <id>"
+    )]
     Image {
         #[command(subcommand)]
-        action: ImageCommands,
+        action: Option<ImageCommands>,
+        /// Image name (when building)
+        #[arg(value_name = "IMAGE_NAME", required_unless_present = "action")]
+        image_name: Option<String>,
+        /// Build path (when building)
+        #[arg(value_name = "PATH", required_unless_present = "action")]
+        path: Option<String>,
+        /// Dockerfile location
+        #[arg(short = 'f', long, value_name = "DOCKERFILE")]
+        dockerfile: Option<String>,
     },
     /// Configuration management
     Config {
@@ -304,23 +329,41 @@ pub async fn run() -> Result<()> {
             coldkey,
             hotkey,
         } => commands::scp::handle(source, destination, coldkey, hotkey, &config).await,
-        Commands::Rsync {
-            source,
-            destination,
-            options,
-        } => {
-            commands::rsync::handle(
-                source,
-                destination,
-                options
-                    .map(|s| s.split_whitespace().map(String::from).collect())
-                    .unwrap_or_default(),
-                &config,
-            )
-            .await
+        Commands::Rsync { args } => {
+            // Manually parse rsync arguments
+            if args.len() < 2 {
+                return Err(CliError::InvalidInput(
+                    "Rsync requires source and destination arguments".to_string(),
+                ));
+            }
+
+            let source = args[0].clone();
+            let destination = args[1].clone();
+            let options = args[2..].to_vec();
+
+            commands::rsync::handle(source, destination, options, &config).await
         }
         Commands::Down { pods, all, yes } => commands::down::handle(pods, all, yes, &config).await,
-        Commands::Image { action } => commands::image::handle(action, &config).await,
+        Commands::Image {
+            action,
+            image_name,
+            path,
+            dockerfile,
+        } => {
+            match action {
+                Some(cmd) => commands::image::handle_subcommand(cmd, &config).await,
+                None => {
+                    // Build image mode
+                    if let (Some(name), Some(build_path)) = (image_name, path) {
+                        commands::image::handle_build(name, build_path, dockerfile, &config).await
+                    } else {
+                        Err(CliError::InvalidInput(
+                            "Image name and path are required for building".to_string(),
+                        ))
+                    }
+                }
+            }
+        }
         Commands::Config { action } => commands::config::handle(action, &config).await,
         Commands::Fund { action } => commands::fund::handle(action, &config).await,
         Commands::Theme { action } => commands::theme::handle(action, &config).await,

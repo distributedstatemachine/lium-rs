@@ -13,7 +13,7 @@ use std::process::{Command, Stdio};
 pub async fn handle(
     source: String,
     destination: String,
-    mut options: Vec<String>,
+    options: Vec<String>,
     config: &Config,
 ) -> Result<()> {
     // Check if rsync is available
