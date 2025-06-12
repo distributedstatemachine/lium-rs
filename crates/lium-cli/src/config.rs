@@ -118,7 +118,7 @@ impl Config {
         // Serialize to TOML
         let content = toml::to_string_pretty(&self.data)
             .map_err(|e| ConfigError::TomlError(e.to_string()))?;
-        
+
         // Ensure parent directory exists
         if let Some(parent) = self.config_path.parent() {
             if !parent.exists() {
@@ -126,21 +126,21 @@ impl Config {
                     .map_err(|e| ConfigError::DirectoryCreationFailed(e.to_string()))?;
             }
         }
-        
+
         // Write to a temporary file first, then rename (atomic operation)
         let temp_path = self.config_path.with_extension("tmp");
-        
+
         // Write to temp file
         fs::write(&temp_path, &content).map_err(CliError::Io)?;
-        
+
         // Atomic rename
         fs::rename(&temp_path, &self.config_path).map_err(CliError::Io)?;
-        
+
         // Explicitly sync to disk
         if let Ok(file) = fs::File::open(&self.config_path) {
             let _ = file.sync_all(); // Ignore errors for sync_all as it's not critical
         }
-        
+
         Ok(())
     }
 

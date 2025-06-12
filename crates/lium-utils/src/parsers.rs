@@ -94,8 +94,8 @@ mod tests {
         let result = parser.parse("ssh -p 2222 ubuntu@example.com").unwrap();
         assert_eq!(
             result,
-            ("example.com".to_string(), 2222, "ubuntu".to_string()))
-        ;
+            ("example.com".to_string(), 2222, "ubuntu".to_string())
+        );
 
         // Invalid format
         assert!(parser.parse("ssh").is_err());
