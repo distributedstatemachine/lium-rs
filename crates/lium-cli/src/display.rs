@@ -276,7 +276,8 @@ pub fn display_pods_table(pods: &[PodInfo]) {
         "Pod HUID".to_string(),
         "Name".to_string(),
         "Status".to_string(),
-        "GPU Config".to_string(),
+        "GPU Type".to_string(),
+        "Count".to_string(),
         "Uptime".to_string(),
         "SSH Command".to_string(),
     ]);
@@ -284,22 +285,52 @@ pub fn display_pods_table(pods: &[PodInfo]) {
     for (i, pod) in pods.iter().enumerate() {
         let index = (i + 1).to_string();
 
-        // Extract GPU info from executor
-        let gpu_config = pod
-            .executor
-            .get("gpu_type")
-            .and_then(|v| v.as_str())
-            .map(|gpu| {
-                let count = pod
-                    .executor
-                    .get("gpu_count")
+        // Extract GPU type and count separately
+        let (gpu_type, gpu_count) = if let Some(specs) = pod.executor.get("specs") {
+            if let Some(gpu) = specs.get("gpu") {
+                // Get GPU count
+                let count = gpu
+                    .get("count")
                     .and_then(|v| v.as_i64())
-                    .unwrap_or(1);
-                format!("{}x {}", count, gpu)
-            })
-            .unwrap_or_else(|| "Unknown".to_string());
+                    .unwrap_or(1)
+                    .to_string();
+
+                // Get GPU name from first detail entry
+                let gpu_name = gpu
+                    .get("details")
+                    .and_then(|details| details.as_array())
+                    .and_then(|arr| arr.first())
+                    .and_then(|detail| detail.get("name"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_else(|| {
+                        // Fallback to machine_name
+                        pod.executor
+                            .get("machine_name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Unknown")
+                    });
+
+                // Extract just the GPU model from the full name
+                let gpu_model = extract_gpu_model(gpu_name);
+
+                (gpu_model.to_string(), count)
+            } else {
+                ("Unknown".to_string(), "1".to_string())
+            }
+        } else {
+            // Fallback to machine_name if specs not available
+            let gpu_type = pod
+                .executor
+                .get("machine_name")
+                .and_then(|v| v.as_str())
+                .map(|name| extract_gpu_model(name).to_string())
+                .unwrap_or_else(|| "Unknown".to_string());
+
+            (gpu_type, "1".to_string())
+        };
 
         // Calculate uptime
+        // Since created_at is null, check for alternative sources
         let uptime = if let Some(created_at) = pod.created_at {
             let now = chrono::Utc::now();
             let duration = now.signed_duration_since(created_at);
@@ -316,23 +347,36 @@ pub fn display_pods_table(pods: &[PodInfo]) {
                 format!("{}m", minutes)
             }
         } else {
-            "Unknown".to_string()
+            // created_at is null, check uptime_in_minutes (but it's also null in your case)
+            if let Some(uptime_minutes) = pod
+                .executor
+                .get("uptime_in_minutes")
+                .and_then(|v| v.as_f64())
+            {
+                let hours = uptime_minutes / 60.0;
+                if hours >= 24.0 {
+                    let days = (hours / 24.0) as i64;
+                    let remaining_hours = (hours % 24.0) as i64;
+                    format!("{}d {}h", days, remaining_hours)
+                } else if hours >= 1.0 {
+                    format!("{:.1}h", hours)
+                } else {
+                    format!("{:.0}m", uptime_minutes)
+                }
+            } else {
+                // No timing information available
+                "Unknown".to_string()
+            }
         };
 
         // Status (no colors in table for proper formatting)
         let status = pod.status.clone();
 
-        // SSH command (truncated if too long)
+        // SSH command (show full command, no truncation)
         let ssh_cmd = pod
             .ssh_cmd
             .as_ref()
-            .map(|cmd| {
-                if cmd.len() > 30 {
-                    format!("{}...", &cmd[..27])
-                } else {
-                    cmd.clone()
-                }
-            })
+            .map(|cmd| cmd.clone())
             .unwrap_or_else(|| "N/A".to_string());
 
         table.add_row(vec![
@@ -340,7 +384,8 @@ pub fn display_pods_table(pods: &[PodInfo]) {
             pod.huid.clone(),
             pod.name.clone(),
             status,
-            gpu_config,
+            gpu_type,
+            gpu_count,
             uptime,
             ssh_cmd,
         ]);
@@ -349,6 +394,36 @@ pub fn display_pods_table(pods: &[PodInfo]) {
     table.print();
 }
 
+// Helper function to extract GPU model from full GPU name
+fn extract_gpu_model(gpu_name: &str) -> &str {
+    if gpu_name.contains("H100") {
+        "H100"
+    } else if gpu_name.contains("A100") {
+        "A100"
+    } else if gpu_name.contains("RTX 4090") || gpu_name.contains("RTX4090") {
+        "RTX4090"
+    } else if gpu_name.contains("RTX 3090") || gpu_name.contains("RTX3090") {
+        "RTX3090"
+    } else if gpu_name.contains("RTX 3080") || gpu_name.contains("RTX3080") {
+        "RTX3080"
+    } else if gpu_name.contains("V100") {
+        "V100"
+    } else if gpu_name.contains("A6000") {
+        "A6000"
+    } else if gpu_name.contains("T4") {
+        "T4"
+    } else if gpu_name.contains("L4") {
+        "L4"
+    } else if gpu_name.contains("L40") {
+        "L40"
+    } else {
+        // Try to find a word that looks like a GPU model
+        gpu_name
+            .split_whitespace()
+            .find(|word| word.chars().any(|c| c.is_numeric()))
+            .unwrap_or("GPU")
+    }
+}
 /// Display detailed pod information
 pub fn display_pod_details(pod: &PodInfo) {
     println!("{}", format!("Pod Details: {}", pod.name).bold().blue());
