@@ -11,7 +11,7 @@
 
 ## Overview
 
-`lium-utils` provides essential infrastructure utilities for the Celium ecosystem. This crate handles low-level system operations including:
+`lium-utils` provides essential infrastructure utilities for the lium ecosystem. This crate handles low-level system operations including:
 
 - **SSH Operations**: Secure remote command execution and file transfers
 - **Docker Integration**: Container management and orchestration utilities
@@ -83,6 +83,6 @@ println!("GPU info: {}", result.stdout);
 
 <div align="center">
 
-*Part of the 🍄 Lium ecosystem*
+*Part of the 🍄 lium ecosystem*
 
 </div> 

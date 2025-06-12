@@ -2,7 +2,7 @@
 
 # 🍄 Lium API
 
-**HTTP API client for Celium compute services**
+**HTTP API client for lium compute services**
 
 [![Rust](https://img.shields.io/badge/Rust-1.70+-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -11,7 +11,7 @@
 
 ## Overview
 
-`lium-api` provides a comprehensive HTTP client for interacting with Celium compute services. This crate handles all API communication including:
+`lium-api` provides a comprehensive HTTP client for interacting with lium compute services. This crate handles all API communication including:
 
 - **Pod Management**: Create, list, update, and delete compute pods
 - **Executor Operations**: Manage job executors and their lifecycle
@@ -72,6 +72,6 @@ let client = LiumApiClient::builder()
 
 <div align="center">
 
-*Part of the 🍄 Lium ecosystem*
+*Part of the 🍄 lium ecosystem*
 
 </div> 

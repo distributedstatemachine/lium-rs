@@ -2,7 +2,7 @@
 
 # 🍄 Lium CLI
 
-**Command-line interface for Celium GPU compute management**
+**Command-line interface for lium GPU compute management**
 
 [![Rust](https://img.shields.io/badge/Rust-1.70+-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -11,7 +11,7 @@
 
 ## Overview
 
-`lium-cli` is the primary command-line interface for the Celium GPU compute management system. It provides a comprehensive set of commands for:
+`lium-cli` is the primary command-line interface for the lium GPU compute management system. It provides a comprehensive set of commands for:
 
 - **Pod Management**: List, create, and manage compute pods
 - **Job Execution**: Submit and monitor compute jobs across clusters  
