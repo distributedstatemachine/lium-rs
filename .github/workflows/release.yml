@@ -72,7 +72,7 @@ jobs:
           cp target/${{ matrix.target }}/release/lium-cli ${{ matrix.name }}
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
           path: ${{ matrix.name }}
@@ -108,20 +108,40 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
 
       - name: List downloaded artifacts
-        run: find . -name "lium-cli-*" -type f -exec ls -la {} \;
+        run: find artifacts -name "lium-cli-*" -type f -exec ls -la {} \;
 
       - name: Generate checksums
         run: |
-          for file in lium-cli-*/lium-cli-*; do
-            if [ -f "$file" ]; then
-              shasum -a 256 "$file" >> checksums.txt
+          cd artifacts
+          for dir in */; do
+            if [ -d "$dir" ]; then
+              for file in "$dir"lium-cli-*; do
+                if [ -f "$file" ]; then
+                  shasum -a 256 "$file" >> ../checksums.txt
+                fi
+              done
             fi
           done
+          cd ..
           echo "Generated checksums:"
           cat checksums.txt
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release-files
+          cd artifacts
+          for dir in */; do
+            if [ -d "$dir" ]; then
+              cp "$dir"* ../release-files/
+            fi
+          done
+          cd ..
+          cp checksums.txt release-files/
 
       - name: Extract version from tag
         id: version
@@ -213,8 +233,6 @@ jobs:
           body_path: release_body.md
           draft: false
           prerelease: false
-          files: |
-            lium-cli-*/lium-cli-*
-            checksums.txt
+          files: release-files/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
