@@ -31,8 +31,6 @@ curl -sSL https://raw.githubusercontent.com/distributedstatemachine/lium-rs/main
 brew install distributedstatemachine/tap/lium-cli
 ```
 
-
-
 #### Cargo (Rust)
 ```bash
 cargo install lium-cli
@@ -53,8 +51,7 @@ yay -S lium-cli
 3. Make executable: `chmod +x lium-cli-*`
 
 **Supported Platforms:**
-- Linux (x86_64, aarch64)
-- macOS (x86_64, Apple Silicon)
+- Linux (x86_64)
 
 </details>
 
@@ -183,7 +180,9 @@ lium rsync ./data/ 1:/workspace/ --dry-run -v
 
 ## ⚙️ Configuration
 
-### Initial Setup
+### 🔐 Configuration
+
+#### Initial Setup
 ```bash
 lium init
 ```
@@ -193,7 +192,7 @@ The setup wizard will guide you through:
 2. **SSH Key**: Configure for secure pod access
 3. **Preferences**: Set defaults for common operations
 
-### Configuration File
+#### Configuration File
 Configuration is stored in `~/.lium/config.toml`:
 
 ```toml
@@ -209,7 +208,7 @@ user = "root"
 default_id = "pytorch-base"
 ```
 
-### Environment Variables
+#### Environment Variables
 - `LIUM_API_KEY`: Override configured API key
 - `LIUM_CONFIG_DIR`: Custom configuration directory
 

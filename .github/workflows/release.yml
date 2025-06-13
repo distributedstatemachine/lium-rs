@@ -21,16 +21,6 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             name: lium-cli-x86_64-unknown-linux-gnu
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            name: lium-cli-aarch64-unknown-linux-gnu
-          # macOS targets
-          - target: x86_64-apple-darwin
-            os: macos-latest
-            name: lium-cli-x86_64-apple-darwin
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            name: lium-cli-aarch64-apple-darwin
 
     steps:
       - name: Checkout repository
@@ -40,18 +30,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-
-      - name: Install cross-compilation tools (Linux ARM64)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-
-      - name: Configure cargo for cross-compilation (Linux ARM64)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
-          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
 
       - name: Cache cargo dependencies
         uses: actions/cache@v3
@@ -83,7 +61,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -155,14 +133,13 @@ jobs:
 
           ## 🚀 Quick Install
 
-          ### Unix/Linux/macOS
+          ### Linux
           ```bash
           curl -sSL https://raw.githubusercontent.com/distributedstatemachine/lium-rs/main/scripts/install.sh | sh
           ```
 
           ### Alternative Methods
           - **Download directly**: Choose your platform below
-          - **Homebrew**: `brew install distributedstatemachine/tap/lium-cli` (coming soon)
           - **Cargo**: `cargo install lium-cli`
 
           ## 📦 Platform Downloads
@@ -170,9 +147,6 @@ jobs:
           | Platform | Architecture | Download |
           |----------|--------------|----------|
           | Linux    | x86_64       | [lium-cli-x86_64-unknown-linux-gnu](https://github.com/distributedstatemachine/lium-rs/releases/download/${{ steps.version.outputs.VERSION }}/lium-cli-x86_64-unknown-linux-gnu) |
-          | Linux    | aarch64      | [lium-cli-aarch64-unknown-linux-gnu](https://github.com/distributedstatemachine/lium-rs/releases/download/${{ steps.version.outputs.VERSION }}/lium-cli-aarch64-unknown-linux-gnu) |
-          | macOS    | Intel        | [lium-cli-x86_64-apple-darwin](https://github.com/distributedstatemachine/lium-rs/releases/download/${{ steps.version.outputs.VERSION }}/lium-cli-x86_64-apple-darwin) |
-          | macOS    | Apple Silicon| [lium-cli-aarch64-apple-darwin](https://github.com/distributedstatemachine/lium-rs/releases/download/${{ steps.version.outputs.VERSION }}/lium-cli-aarch64-apple-darwin) |
 
           ## 🛠️ Installation
 
@@ -235,4 +209,4 @@ jobs:
           prerelease: false
           files: release-files/*
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} git 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

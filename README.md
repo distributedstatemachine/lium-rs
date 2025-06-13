@@ -54,7 +54,7 @@ Lium is structured as a modular Rust workspace with four core crates for interac
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/lium-rs.git
+git clone https://github.com/distributedstatemachine/lium-rs.git
 cd lium-rs
 
 # Build the project

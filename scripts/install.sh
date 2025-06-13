@@ -55,12 +55,9 @@ detect_platform() {
         linux*)
             OS="linux"
             ;;
-        darwin*)
-            OS="macos"
-            ;;
         *)
             error "Unsupported operating system: $os"
-            error "Only Linux and macOS are supported."
+            error "Only Linux x86_64 is supported."
             exit 1
             ;;
     esac
@@ -69,12 +66,9 @@ detect_platform() {
         x86_64|amd64)
             ARCH="x86_64"
             ;;
-        aarch64|arm64)
-            ARCH="aarch64"
-            ;;
         *)
             error "Unsupported architecture: $arch"
-            error "Only x86_64 and aarch64 are supported."
+            error "Only x86_64 is supported."
             exit 1
             ;;
     esac
@@ -113,30 +107,8 @@ get_latest_release() {
 
 # Construct download URL and filename
 construct_download_info() {
-    # Construct the binary filename based on platform
-    case "$OS" in
-        linux)
-            if [ "$ARCH" = "x86_64" ]; then
-                BINARY_FILE="lium-cli-x86_64-unknown-linux-gnu"
-            elif [ "$ARCH" = "aarch64" ]; then
-                BINARY_FILE="lium-cli-aarch64-unknown-linux-gnu"
-            else
-                error "Unsupported Linux architecture: $ARCH"
-                exit 1
-            fi
-            ;;
-        macos)
-            if [ "$ARCH" = "x86_64" ]; then
-                BINARY_FILE="lium-cli-x86_64-apple-darwin"
-            elif [ "$ARCH" = "aarch64" ]; then
-                BINARY_FILE="lium-cli-aarch64-apple-darwin"
-            else
-                error "Unsupported macOS architecture: $ARCH"
-                exit 1
-            fi
-            ;;
-    esac
-
+    # Only support Linux x86_64
+    BINARY_FILE="lium-cli-x86_64-unknown-linux-gnu"
     DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${VERSION}/${BINARY_FILE}"
     log "Download URL: $DOWNLOAD_URL"
 }
@@ -328,8 +300,7 @@ main() {
                 echo "  INSTALL_DIR         Override default install directory"
                 echo ""
                 echo "Supported Platforms:"
-                echo "  - Linux (x86_64, aarch64)"
-                echo "  - macOS (x86_64, aarch64/Apple Silicon)"
+                echo "  - Linux (x86_64)"
                 echo ""
                 exit 0
                 ;;
