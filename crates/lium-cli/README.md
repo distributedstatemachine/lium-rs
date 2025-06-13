@@ -9,34 +9,31 @@
 [![Crates.io](https://img.shields.io/crates/v/lium-cli.svg)](https://crates.io/crates/lium-cli)
 [![Build Status](https://github.com/distributedstatemachine/lium-rs/workflows/CI/badge.svg)](https://github.com/distributedstatemachine/lium-rs/actions)
 
-🍄 **Lium CLI** - Command-line interface for cloud GPU computing with Lium.
+*Command-line interface for cloud GPU computing with Lium*
 
 Rent high-performance cloud GPUs, manage containerized workloads, and scale your ML/AI projects with ease. Access RTX 4090s, H100s, A100s, and other powerful GPUs on-demand.
 
-## 🚀 Quick Installation
+</div>
 
-### One-Line Installer (Recommended)
+## 🚀 Quick Install
+
+### One-Line Installation
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/distributedstatemachine/lium-rs/main/scripts/install.sh | sh
 ```
 
-### Alternative Installation Methods
+### Alternative Methods
 
 <details>
-<summary>📦 Package Managers</summary>
+<summary>📦 Package Managers (Coming Soon)</summary>
 
-#### Homebrew (macOS/Linux)
-```bash
-brew install distributedstatemachine/tap/lium-cli
-```
-
-#### Cargo (Rust)
+**Cargo (Rust):**
 ```bash
 cargo install lium-cli
 ```
 
-#### Arch Linux (AUR)
+**AUR (Arch Linux):**
 ```bash
 yay -S lium-cli
 ```
@@ -44,155 +41,175 @@ yay -S lium-cli
 </details>
 
 <details>
-<summary>📁 Manual Installation</summary>
+<summary>🔧 Manual Installation</summary>
 
-1. Download the latest binary from [GitHub Releases](https://github.com/distributedstatemachine/lium-rs/releases)
-2. Extract and place in your PATH
-3. Make executable: `chmod +x lium-cli-*`
+1. Download the latest binary from [releases](https://github.com/distributedstatemachine/lium-rs/releases)
+2. Make it executable: `chmod +x lium-cli-*`
+3. Move to PATH: `sudo mv lium-cli-* /usr/local/bin/lium`
 
-**Supported Platforms:**
+**Supported Platform:**
 - Linux (x86_64)
 
 </details>
 
-## 🏃‍♂️ Quick Start
+<details>
+<summary>🦀 From Source</summary>
 
 ```bash
-# 1. Set up your configuration
+git clone https://github.com/distributedstatemachine/lium-rs.git
+cd lium-rs
+cargo install --path crates/lium-cli
+```
+
+</details>
+
+### Uninstall
+
+```bash
+curl -sSL https://raw.githubusercontent.com/distributedstatemachine/lium-rs/main/scripts/uninstall.sh | sh
+```
+
+## 🎯 Quick Start
+
+```bash
+# Initialize configuration
 lium init
 
-# 2. Browse available GPUs
+# List available GPU executors
 lium ls
 
-# 3. Filter by specific GPU types
-lium ls RTX4090 --available
+# Create a new pod
+lium up --image pytorch/pytorch:latest
 
-# 4. Start a pod with your preferred setup
-lium up --gpu RTX4090 --image pytorch/pytorch:latest
+# SSH into your pod
+lium ssh my-pod
 
-# 5. Connect to your pod
-lium ssh 1
+# List your active pods
+lium ps
 
-# 6. Stop your pod when done
-lium down 1
+# Terminate a pod
+lium down my-pod
 ```
 
 ## 📋 Commands Overview
 
-| Command | Description | Examples |
-|---------|-------------|----------|
-| `lium init` | Initial setup and configuration | `lium init` |
-| `lium ls` | List and filter available GPUs | `lium ls RTX4090 --available --price "0.5-2.0"` |
-| `lium up` | Create and start a new pod | `lium up --gpu H100 --name training-job` |
-| `lium ps` | List active pods | `lium ps --all` |
-| `lium ssh` | Connect to a pod via SSH | `lium ssh my-pod` |
-| `lium exec` | Execute commands on pods | `lium exec 1,2,3 "nvidia-smi"` |
-| `lium down` | Stop and terminate pods | `lium down --all` |
-| `lium rsync` | Sync files with pods | `lium rsync ./data/ 1:/workspace/` |
-| `lium fund` | Manage wallet and billing | `lium fund balance` |
-| `lium config` | Manage configuration | `lium config show` |
-| `lium theme` | Customize appearance | `lium theme set dark` |
+| Command | Description | Example |
+|---------|-------------|---------|
+| `init` | Set up configuration and API keys | `lium init` |
+| `ls` | List available GPU executors | `lium ls --gpu-type "RTX 4090"` |
+| `up` | Create and start a new pod | `lium up --image pytorch/pytorch:latest` |
+| `down` | Stop and terminate a pod | `lium down my-pod` |
+| `ps` | List your active pods | `lium ps` |
+| `ssh` | Connect to a pod via SSH | `lium ssh my-pod` |
+| `exec` | Execute commands in a pod | `lium exec my-pod "nvidia-smi"` |
+| `rsync` | Sync files with a pod | `lium rsync ./data/ my-pod:~/data/` |
+| `scp` | Copy files to/from a pod | `lium scp file.txt my-pod:~/` |
+| `image` | Manage Docker images | `lium image ls` |
+| `config` | Manage configuration | `lium config show` |
+| `theme` | Change CLI appearance | `lium theme set dark` |
+| `fund` | Manage wallet funding | `lium fund balance` |
 
-## 🔧 Detailed Usage
+## 🔧 Usage Guide
 
-### 🔍 Finding the Right GPU
+### Finding GPU Executors
 
 ```bash
-# List all available GPUs
+# List all available executors
 lium ls
 
-# Filter by GPU type and availability
-lium ls --gpu RTX4090 --available
-
-# Show only Pareto optimal options (best price/performance)
-lium ls --pareto --format table
+# Filter by GPU type
+lium ls --gpu-type "RTX 4090"
 
 # Filter by price range
-lium ls --price "0.5-2.0" --sort price
+lium ls --max-price 1.5
 
-# Show GPU type summary
-lium ls --summary
+# Filter by location
+lium ls --region us-east
 
-# Export results to CSV for analysis
-lium ls --available --export results.csv
+# Sort by price
+lium ls --sort price
+
+# Show detailed view
+lium ls --format detailed
+
+# Export to JSON
+lium ls --format json > executors.json
 ```
 
-### 🚀 Creating and Managing Pods
+### Pod Management
 
 ```bash
-# Quick start with default template
-lium up
+# Basic pod creation
+lium up --image pytorch/pytorch:latest
 
-# Specify GPU type and custom image
-lium up --gpu H100 --image nvidia/pytorch:23.08-py3
+# Specify executor
+lium up --executor abc123 --image tensorflow/tensorflow:latest
 
-# Set environment variables and port mappings
-lium up --env "DEBUG=1,API_KEY=secret" --ports "8080:80,8888:8888"
+# Use a template
+lium up --template ml-training
 
-# Create with custom name and skip confirmation
-lium up --name training-job --yes
+# Set resource requirements
+lium up --image ubuntu:22.04 --gpu-count 2 --ram 32
 
-# Use template by ID
-lium up --image template-pytorch-base --gpu RTX4090
+# Set environment variables
+lium up --image python:3.9 --env "PYTHONPATH=/app" --env "DEBUG=1"
+
+# Forward ports
+lium up --image jupyter/tensorflow-notebook --port 8888:8888
+
+# Custom startup script
+lium up --image ubuntu:22.04 --script setup.sh
 ```
 
-### 💻 Working with Pods
+### File Operations
 
 ```bash
-# List all active pods
-lium ps
+# Copy file to pod
+lium scp ./model.py my-pod:~/
 
-# Show detailed information for specific pods
-lium ps 1,3 all
+# Copy directory from pod
+lium scp my-pod:~/results/ ./local-results/
 
-# Filter pods by status or GPU type
-lium ps --status running --gpu RTX4090
+# Sync directories
+lium rsync ./code/ my-pod:~/code/ --delete
 
-# Connect via SSH for interactive work
+# Sync with specific options
+lium rsync ./data/ my-pod:~/data/ --exclude "*.tmp" --compress
+```
+
+### Remote Execution
+
+```bash
+# Run a command
+lium exec my-pod "nvidia-smi"
+
+# Run with environment variables
+lium exec my-pod --env "CUDA_VISIBLE_DEVICES=0" "python train.py"
+
+# Execute a script
+lium exec my-pod --script train.sh
+
+# Interactive shell
 lium ssh my-pod
-
-# Execute commands across multiple pods
-lium exec 1,2,3 "pip install transformers"
-lium exec all "nvidia-smi"
-
-# Run a script on pods
-lium exec 1 --script setup.sh --env WORKERS=4
-```
-
-### 📁 File Management
-
-```bash
-# Upload data to pod
-lium rsync ./dataset/ 1:/workspace/data/
-
-# Download results from pod
-lium rsync 1:/workspace/outputs/ ./results/
-
-# Sync with progress and compression
-lium rsync ./models/ 1:/workspace/models/ -av --progress --compress
-
-# Exclude certain files
-lium rsync ./project/ 1:/workspace/ --exclude "*.pyc" --exclude ".git"
-
-# Dry run to preview changes
-lium rsync ./data/ 1:/workspace/ --dry-run -v
 ```
 
 ## ⚙️ Configuration
 
-### 🔐 Configuration
+### Initial Setup
 
-#### Initial Setup
 ```bash
+# Interactive setup wizard
 lium init
+
+# Set API key manually
+lium config set api_key "your-api-key-here"
+
+# Set default SSH key
+lium config set ssh_key_path "~/.ssh/id_rsa"
 ```
 
-The setup wizard will guide you through:
-1. **API Key**: Get yours from [Lium Dashboard](https://dashboard.lium.ai/api-keys)
-2. **SSH Key**: Configure for secure pod access
-3. **Preferences**: Set defaults for common operations
+### Configuration File
 
-#### Configuration File
 Configuration is stored in `~/.lium/config.toml`:
 
 ```toml
@@ -201,171 +218,277 @@ api_key = "your-api-key-here"
 base_url = "https://api.lium.ai"
 
 [ssh]
-key_path = "~/.ssh/id_ed25519.pub"
+key_path = "~/.ssh/id_rsa"
 user = "root"
 
-[template]
-default_id = "pytorch-base"
+[defaults]
+image = "pytorch/pytorch:latest"
+gpu_count = 1
 ```
 
-#### Environment Variables
-- `LIUM_API_KEY`: Override configured API key
-- `LIUM_CONFIG_DIR`: Custom configuration directory
+### Configuration Commands
 
-## 💰 Billing and Costs
+```bash
+# View current configuration
+lium config show
+
+# Set individual values
+lium config set default_image "pytorch/pytorch:latest"
+lium config set default_gpu_count 1
+lium config set auto_confirm false
+
+# Get specific value
+lium config get api_key
+```
+
+## 🌐 Connectivity
+
+### SSH Configuration
+
+The CLI automatically manages SSH connectivity:
+
+- **Key Management**: Uses your default SSH key or configured key
+- **Auto-Connect**: Establishes secure tunnels automatically
+- **Port Forwarding**: Forwards specified ports to your local machine
+
+### Troubleshooting
+
+```bash
+# Test connectivity
+lium ssh my-pod --test
+
+# Debug connection
+lium ssh my-pod --debug
+
+# Use specific SSH key
+lium ssh my-pod --ssh-key ~/.ssh/custom_key
+
+# Connect with port forwarding
+lium ssh my-pod --port 8888:8888
+```
+
+## 💰 Billing
 
 ```bash
 # Check wallet balance
 lium fund balance
 
-# View usage history
+# View billing history
 lium fund history
 
-# Add funds (requires Bittensor wallet)
-lium fund add 10.0
-```
+# Add funds
+lium fund add
 
-**Cost Optimization Tips:**
-- Use `--pareto` flag to find price/performance optimal GPUs
-- Filter by price range: `--price "0.5-1.5"`
-- Stop pods when not in use: `lium down --all`
-- Monitor costs with `lium ps` (shows hourly rates)
+# Set spending limits
+lium config set max_hourly_spend 10.0
+```
 
 ## 🎨 Customization
 
 ### Themes
+
 ```bash
 # List available themes
 lium theme list
 
-# Set a theme
+# Set theme
 lium theme set dark
-lium theme set cyberpunk
+
+# Create custom theme
+lium theme create my-theme
 ```
 
-### Display Formats
+### Output Formats
+
 ```bash
-# Table view (default)
+# Table format (default)
 lium ls --format table
 
-# Compact view for quick scanning
+# Compact format
 lium ls --format compact
 
-# Detailed view with full specifications
+# Detailed format
 lium ls --format detailed
 
-# Summary view grouped by GPU type
+# JSON output
+lium ls --format json
+
+# Summary format
 lium ls --format summary
 ```
 
-## 🔒 Security
+## 🔍 Advanced Features
 
-- **SSH Keys**: All pod access uses SSH key authentication
-- **API Keys**: Stored securely in local configuration
-- **TLS**: All API communication uses HTTPS
-- **Isolation**: Each pod runs in its own secure container
+### Templates
 
-## 🆘 Troubleshooting
+```bash
+# List available templates
+lium image templates
+
+# Use a template
+lium up --template pytorch-jupyter
+
+# Create custom template
+lium image create-template my-template \
+  --image pytorch/pytorch:latest \
+  --gpu-count 1 \
+  --startup-script setup.py
+```
+
+### Automation
+
+```bash
+# Non-interactive mode
+lium up --image ubuntu:22.04 --yes
+
+# Configuration file
+lium up --config pod-config.yaml
+
+# Environment file
+lium up --env-file .env --image my-app:latest
+```
+
+## 🐛 Troubleshooting
 
 ### Common Issues
 
-**API Connection Failed:**
+**Pod won't start:**
 ```bash
-# Check API key configuration
-lium config show
+# Check pod status
+lium ps my-pod --details
 
-# Test API connectivity
-lium ls --limit 1
+# View logs
+lium exec my-pod "journalctl -u docker"
 ```
 
-**SSH Connection Issues:**
+**SSH connection fails:**
 ```bash
-# Verify SSH key configuration
-lium config show
+# Test SSH connectivity
+lium ssh my-pod --test
 
-# Check SSH key permissions
-chmod 600 ~/.ssh/id_ed25519
-chmod 644 ~/.ssh/id_ed25519.pub
+# Check pod status
+lium ps my-pod
+
+# Verify SSH key
+lium config get ssh_key_path
 ```
 
-**Pod Creation Failed:**
+**Command not found:**
 ```bash
-# Check available executors
-lium ls --available
+# Check if lium is in PATH
+which lium
 
-# Verify template/image exists
-lium up --image pytorch/pytorch:latest --gpu RTX4090
+# Reinstall if needed
+curl -sSL https://raw.githubusercontent.com/distributedstatemachine/lium-rs/main/scripts/install.sh | sh
+```
+
+### Debug Mode
+
+```bash
+# Enable verbose logging
+export LIUM_LOG=debug
+lium ls
+
+# Or use the debug flag
+lium --debug ls
 ```
 
 ### Getting Help
 
 ```bash
-# Command help
+# General help
 lium --help
+
+# Command-specific help
 lium up --help
 
-# Verbose logging
-RUST_LOG=debug lium ls
-
-# Support
-# Visit https://github.com/distributedstatemachine/lium-rs
-# Join our Discord: https://discord.gg/lium
+# Version information
+lium --version
 ```
 
-## 🔄 Uninstallation
+## 🔗 Integration
 
-### One-Line Uninstaller
+### CI/CD Pipelines
+
+```yaml
+# GitHub Actions example
+- name: Setup Lium CLI
+  run: |
+    curl -sSL https://raw.githubusercontent.com/distributedstatemachine/lium-rs/main/scripts/install.sh | sh
+    lium config set api_key ${{ secrets.LIUM_API_KEY }}
+
+- name: Train Model
+  run: |
+    lium up --image my-training:latest --script train.sh --wait
+    lium scp my-pod:~/model.pkl ./artifacts/
+    lium down my-pod
+```
+
+### Docker Integration
+
+```dockerfile
+# Use in Dockerfile
+FROM ubuntu:22.04
+RUN curl -sSL https://raw.githubusercontent.com/distributedstatemachine/lium-rs/main/scripts/install.sh | sh
+```
+
+## 📊 Monitoring
+
+### Resource Usage
+
 ```bash
-curl -sSL https://raw.githubusercontent.com/distributedstatemachine/lium-rs/main/scripts/uninstall.sh | sh
+# Monitor pod resources
+lium exec my-pod "htop"
+
+# GPU utilization
+lium exec my-pod "nvidia-smi -l 1"
+
+# Disk usage
+lium exec my-pod "df -h"
 ```
 
-### Manual Removal
+### Cost Tracking
+
 ```bash
-# Remove binary (if installed manually)
-rm $(which lium)
+# Current costs
+lium fund current-costs
 
-# Remove configuration (optional)
-rm -rf ~/.lium
+# Set spending alerts
+lium config set spending_alert_threshold 50.0
 
-# Remove from PATH (if added manually)
-# Edit your shell profile (~/.bashrc, ~/.zshrc, etc.)
+# Cost projection
+lium fund estimate --hours 24
 ```
 
-## 🛠️ Development
+## 🚀 Performance Tips
 
-### Building from Source
-```bash
-git clone https://github.com/distributedstatemachine/lium-rs.git
-cd lium-rs/crates/lium-cli
-cargo build --release
-```
+1. **Image Optimization**: Use smaller, optimized Docker images
+2. **Region Selection**: Choose executors close to your location
+3. **Resource Matching**: Match executor specs to your workload
+4. **Batch Operations**: Use templates for repeated deployments
+5. **Data Locality**: Keep data close to compute resources
 
-### Contributing
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
+## 📱 Platform Support
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md) for detailed guidelines.
+- ✅ **Linux** (x86_64)
 
-## 📚 Resources
+## 🆘 Support
 
-- **Documentation**: [GitHub Repository](https://github.com/distributedstatemachine/lium-rs)
-- **Issues**: [Report bugs or request features](https://github.com/distributedstatemachine/lium-rs/issues)
-- **Releases**: [Latest releases and binaries](https://github.com/distributedstatemachine/lium-rs/releases)
+- 📖 **Documentation**: [GitHub Repository](https://github.com/distributedstatemachine/lium-rs)
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/distributedstatemachine/lium-rs/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/distributedstatemachine/lium-rs/discussions)
+- 🔐 **Security**: [Security Policy](https://github.com/distributedstatemachine/lium-rs/security/policy)
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🤝 Support
-
-- **GitHub Issues**: [Report bugs or request features](https://github.com/distributedstatemachine/lium-rs/issues)
-- **Documentation**: [GitHub Repository](https://github.com/distributedstatemachine/lium-rs)
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/distributedstatemachine/lium-rs/blob/main/LICENSE) file for details.
 
 ---
 
-**Made with ❤️ by the Lium team**
+<div align="center">
+
+**Built with ❤️ and 🦀 Rust**
+
+*🍄 Lium CLI - Making GPU compute simple and powerful*
 
 </div> 
