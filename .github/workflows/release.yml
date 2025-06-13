@@ -6,6 +6,12 @@ on:
       - "v*.*.*"
   workflow_dispatch:
 
+# Grant GITHUB_TOKEN the permissions required to create releases
+permissions:
+  contents: write    # Required to create releases and upload files
+  actions: read      # Required to download artifacts
+  packages: read     # May be needed for some dependencies
+
 env:
   CARGO_TERM_COLOR: always
 
